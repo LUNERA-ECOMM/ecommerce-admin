@@ -1,15 +1,25 @@
 'use client';
 
 import AuthButton from '@/components/AuthButton';
+import CategoryCarousel from '@/components/CategoryCarousel';
+import ProductCard from '@/components/ProductCard';
+import { useCategories, useProductsByCategory } from '@/lib/firestore-data';
 import dynamic from 'next/dynamic';
 
 const AdminRedirect = dynamic(() => import('@/components/AdminRedirect'), {
   ssr: false,
 });
-import CategoryCarousel from '@/components/CategoryCarousel';
-import ProductCard from '@/components/ProductCard';
 
-export default function CategoryPageTemplate({ category, products }) {
+export default function CategoryPageTemplate({ categoryId, category: categoryProp, products: productsProp }) {
+  const { categories } = useCategories();
+  const { products: fetchedProducts, loading: productsLoading } = useProductsByCategory(categoryId);
+
+  // Use fetched data if categoryId provided, otherwise use props (for backward compatibility)
+  const category = categoryId
+    ? categories.find((cat) => cat.id === categoryId) || categoryProp
+    : categoryProp;
+  const products = categoryId ? fetchedProducts : productsProp;
+  const loading = categoryId ? productsLoading : false;
   return (
     <div className="min-h-screen bg-gradient-to-b from-white via-pink-50/40 to-white">
       <AdminRedirect />
@@ -63,7 +73,17 @@ export default function CategoryPageTemplate({ category, products }) {
           </p>
         </div>
 
-        {products.length === 0 ? (
+        {loading ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 md:gap-5">
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+              <div key={i} className="aspect-[3/4] animate-pulse rounded-3xl bg-pink-50/50" />
+            ))}
+          </div>
+        ) : !category ? (
+          <div className="rounded-3xl border border-pink-100/70 bg-white/80 p-6 text-center text-slate-500">
+            Category not found.
+          </div>
+        ) : products.length === 0 ? (
           <div className="rounded-3xl border border-pink-100/70 bg-white/80 p-6 text-center text-slate-500">
             Products will appear here soon. Check back shortly.
           </div>

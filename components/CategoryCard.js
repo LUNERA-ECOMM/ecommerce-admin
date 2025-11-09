@@ -17,7 +17,7 @@ export default function CategoryCard({ category, products }) {
 
   return (
     <Link
-      href={`/${category.value}`}
+      href={`/${category.slug}`}
       className="group flex flex-col overflow-hidden rounded-3xl border border-pink-100/70 bg-white/90 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
       prefetch
       aria-label={`Explore ${category.label} collection`}

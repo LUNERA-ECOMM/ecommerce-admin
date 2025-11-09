@@ -1,10 +1,10 @@
 'use client';
 
-import { categories } from '@/lib/categories';
-import { products } from '@/lib/products';
+import { useEffect, useMemo, useState } from 'react';
 import AuthButton from '@/components/AuthButton';
 import CategoryCard from '@/components/CategoryCard';
 import CategoryCarousel from '@/components/CategoryCarousel';
+import { useCategories, useAllProducts } from '@/lib/firestore-data';
 import dynamic from 'next/dynamic';
 
 const AdminRedirect = dynamic(() => import('@/components/AdminRedirect'), {
@@ -12,10 +12,27 @@ const AdminRedirect = dynamic(() => import('@/components/AdminRedirect'), {
 });
 
 export default function Home() {
-  const categoryPreviews = categories.map((category) => ({
-    category,
-    products: products.filter((product) => product.category === category.value).slice(0, 4),
-  }));
+  const { categories, loading: categoriesLoading } = useCategories();
+  const { products, loading: productsLoading } = useAllProducts();
+
+  const categoryPreviews = useMemo(() => {
+    return categories.map((category) => {
+      const categoryProducts = products
+        .filter((product) => product.categoryId === category.id)
+        .sort((a, b) => {
+          const aViews = a.metrics?.totalViews || 0;
+          const bViews = b.metrics?.totalViews || 0;
+          return bViews - aViews;
+        })
+        .slice(0, 4);
+      return {
+        category,
+        products: categoryProducts,
+      };
+    });
+  }, [categories, products]);
+
+  const loading = categoriesLoading || productsLoading;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white via-pink-50/40 to-white">
@@ -66,11 +83,19 @@ export default function Home() {
             Choose a category to explore this week’s top four bestsellers, refreshed daily.
           </p>
         </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {categoryPreviews.map(({ category, products }) => (
-            <CategoryCard key={category.value} category={category} products={products} />
-          ))}
-        </div>
+        {loading ? (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-64 animate-pulse rounded-3xl bg-pink-50/50" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {categoryPreviews.map(({ category, products }) => (
+              <CategoryCard key={category.id} category={category} products={products} />
+            ))}
+          </div>
+        )}
       </main>
 
       {/* Footer */}

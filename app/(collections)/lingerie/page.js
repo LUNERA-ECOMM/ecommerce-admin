@@ -1,15 +1,28 @@
+'use client';
+
 import CategoryPageTemplate from '@/components/CategoryPageTemplate';
-import { categories } from '@/lib/categories';
-import { products } from '@/lib/products';
+import { useCategories } from '@/lib/firestore-data';
 
 export default function LingeriePage() {
-  const category = categories.find((item) => item.value === 'lingerie');
-  const categoryProducts = products.filter((product) => product.category === 'lingerie');
+  const { categories, loading } = useCategories();
+  const category = categories.find((cat) => cat.slug === 'lingerie');
 
-  if (!category) {
-    return null;
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-slate-500">Loading...</div>
+      </div>
+    );
   }
 
-  return <CategoryPageTemplate category={category} products={categoryProducts} />;
+  if (!category) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-slate-500">Category not found.</div>
+      </div>
+    );
+  }
+
+  return <CategoryPageTemplate categoryId={category.id} />;
 }
 

@@ -3,19 +3,23 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useMemo } from 'react';
-import { categories } from '@/lib/categories';
-
-const navItems = [
-  { href: '/', value: 'all', label: 'All Categories' },
-  ...categories.map((category) => ({
-    href: `/${category.value}`,
-    value: category.value,
-    label: category.label,
-  })),
-];
+import { useCategories } from '@/lib/firestore-data';
 
 export default function CategoryCarousel({ align = 'center' }) {
   const pathname = usePathname();
+  const { categories, loading } = useCategories();
+
+  const navItems = useMemo(
+    () => [
+      { href: '/', value: 'all', label: 'All Categories' },
+      ...categories.map((category) => ({
+        href: `/${category.slug}`,
+        value: category.slug,
+        label: category.label,
+      })),
+    ],
+    [categories]
+  );
 
   const isActive = (item) =>
     (item.value === 'all' && pathname === '/') || pathname === item.href;
