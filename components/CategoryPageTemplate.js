@@ -1,3 +1,5 @@
+'use client';
+
 import AuthButton from '@/components/AuthButton';
 import dynamic from 'next/dynamic';
 

@@ -1,3 +1,5 @@
+'use client';
+
 import { categories } from '@/lib/categories';
 import { products } from '@/lib/products';
 import AuthButton from '@/components/AuthButton';
