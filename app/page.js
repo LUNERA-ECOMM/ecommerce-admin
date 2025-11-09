@@ -52,7 +52,7 @@ export default function Home() {
             Curated collections for every mood and moment.
           </h2>
           <p className="text-base text-slate-600 sm:text-lg">
-            From delicate lace to active-ready comfort, discover the pieces that make you feel
+            From delicate lace to active-ready comfort. Discover the pieces that make you feel
             confident, effortless, and beautifully yourself.
           </p>
         </div>
