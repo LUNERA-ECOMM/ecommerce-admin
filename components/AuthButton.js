@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { signInWithGoogle, signOutUser, isAdmin, onAuthStateChanged, auth } from '@/lib/auth';
+import { signInWithGoogle, signOutUser, isAdmin, subscribeToAuth } from '@/lib/auth';
 
 export default function AuthButton() {
   const [user, setUser] = useState(null);
@@ -10,16 +10,20 @@ export default function AuthButton() {
   const router = useRouter();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = subscribeToAuth((currentUser) => {
       setUser(currentUser);
       setLoading(false);
-      
+
       if (currentUser && isAdmin(currentUser.email)) {
         router.push('/admin/overview');
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
   }, [router]);
 
   const handleSignIn = async () => {

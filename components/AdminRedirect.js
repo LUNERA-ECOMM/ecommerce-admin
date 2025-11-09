@@ -2,19 +2,23 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { onAuthStateChanged, auth, isAdmin } from '@/lib/auth';
+import { subscribeToAuth, isAdmin } from '@/lib/auth';
 
 export default function AdminRedirect() {
   const router = useRouter();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = subscribeToAuth((user) => {
       if (user && isAdmin(user.email)) {
         router.push('/admin/overview');
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
   }, [router]);
 
   return null;
