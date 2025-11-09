@@ -2,15 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { onAuthStateChanged, auth, isAdmin } from '@/lib/auth';
-import { signOutUser } from '@/lib/auth';
+import { subscribeToAuth, isAdmin, signOutUser } from '@/lib/auth';
 
 export default function AdminLayout({ children }) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = subscribeToAuth((user) => {
       if (!user || !isAdmin(user.email)) {
         router.push('/');
       } else {
@@ -18,7 +17,11 @@ export default function AdminLayout({ children }) {
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
   }, [router]);
 
   const handleSignOut = async () => {
