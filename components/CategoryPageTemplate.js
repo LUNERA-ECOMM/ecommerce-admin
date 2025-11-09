@@ -1,5 +1,9 @@
 import AuthButton from '@/components/AuthButton';
-import AdminRedirect from '@/components/AdminRedirect';
+import dynamic from 'next/dynamic';
+
+const AdminRedirect = dynamic(() => import('@/components/AdminRedirect'), {
+  ssr: false,
+});
 import CategoryCarousel from '@/components/CategoryCarousel';
 import ProductCard from '@/components/ProductCard';
 

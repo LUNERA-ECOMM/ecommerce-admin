@@ -3,7 +3,11 @@ import { products } from '@/lib/products';
 import AuthButton from '@/components/AuthButton';
 import CategoryCard from '@/components/CategoryCard';
 import CategoryCarousel from '@/components/CategoryCarousel';
-import AdminRedirect from '@/components/AdminRedirect';
+import dynamic from 'next/dynamic';
+
+const AdminRedirect = dynamic(() => import('@/components/AdminRedirect'), {
+  ssr: false,
+});
 
 export default function Home() {
   const categoryPreviews = categories.map((category) => ({
