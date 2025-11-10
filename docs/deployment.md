@@ -35,10 +35,18 @@ Before deploying to Firebase Hosting, ensure the following APIs are enabled in y
 ### Service Account Permissions
 
 Ensure your Firebase service account (`FIREBASE_SERVICE_ACCOUNT_ECOMMERCE_2F366`) has the following roles:
-- Cloud Functions Admin
-- Firebase Admin
-- Service Account User
-- Cloud Build Service Account
+
+**Required Roles:**
+- **Firebase Admin** ⚠️ **REQUIRED** - Includes `firebaseextensions.instances.list` permission needed for framework deployments
+- **Firebase Admin SDK Administrator Service Agent** - Usually auto-assigned, but verify it exists
+- **Cloud Functions Admin** - Required for deploying Cloud Functions
+- **Service Account User** - Required for Cloud Functions to use service accounts
+- **Cloud Build Service Account** - Required for building functions
+
+**Important Notes:**
+- The **Firebase Admin** role is required (not just the service agent role). The service agent role alone doesn't include all necessary permissions.
+- Your service account is typically named: `firebase-adminsdk-xxxxx@ecommerce-2f366.iam.gserviceaccount.com`
+- To check/update roles, go to [IAM page](https://console.cloud.google.com/iam-admin/iam?project=ecommerce-2f366) (not the Roles page)
 
 ## Common Build Failures
 
@@ -60,22 +68,29 @@ Please ask a project owner to visit the following URL to enable this service:
 
 **Why this happens:** The GitHub Actions service account doesn't have permission to enable APIs programmatically. You need to enable them manually in the Google Cloud Console.
 
-### "Permissions denied enabling firebaseextensions.googleapis.com"
+### "firebaseextensions.instances.list permission denied" or "The caller does not have permission"
 
 If you see this error:
 
 ```
-Error: Permissions denied enabling firebaseextensions.googleapis.com.
-Please ask a project owner to visit the following URL to enable this service:
+[iam] error while checking permissions, command may fail: Authorization failed. This account is missing the following required permissions on project ***:
+  firebaseextensions.instances.list
+
+Error: Request to https://firebaseextensions.googleapis.com/v1beta/projects/***/instances had HTTP Error: 403, The caller does not have permission
 ```
 
 **Solution:**
-1. Visit: https://console.cloud.google.com/apis/library/firebaseextensions.googleapis.com?project=ecommerce-2f366
-2. Click "Enable"
-3. Wait 2-3 minutes for the API to propagate
-4. Retry the deployment
+1. Go to [Google Cloud Console IAM](https://console.cloud.google.com/iam-admin/iam?project=ecommerce-2f366) (make sure you're on the IAM page, not Roles)
+2. Find your service account (typically named `firebase-adminsdk-xxxxx@ecommerce-2f366.iam.gserviceaccount.com`)
+   - If you can't find it, check your GitHub Actions secret `FIREBASE_SERVICE_ACCOUNT_ECOMMERCE_2F366` for the exact email
+3. Click "Edit" (pencil icon) next to the service account
+4. Click "Add Another Role"
+5. Search for and select: **Firebase Admin** (not "Firebase Admin SDK Administrator Service Agent")
+6. Click "Save"
+7. Wait 1-2 minutes for permissions to propagate
+8. Retry the deployment
 
-**Why this happens:** Firebase framework deployments require the Extensions API. The GitHub Actions service account doesn't have permission to enable APIs programmatically.
+**Why this happens:** The service account needs the `firebaseextensions.instances.list` IAM permission to query Firebase Extensions instances. While "Firebase Admin SDK Administrator Service Agent" is a service agent role, it doesn't include all permissions. The broader **Firebase Admin** role includes this permission and is required for framework deployments.
 
 ### "Cloud Functions API has not been used"
 
@@ -108,5 +123,18 @@ The GitHub Actions workflows will automatically:
 2. Deploy to Firebase Hosting
 3. Create/update Cloud Functions for SSR routes
 
-Make sure all required APIs are enabled before the first deployment.
+Make sure all required APIs are enabled and the service account has the correct IAM roles before the first deployment.
+
+## Quick Checklist
+
+Before deploying, verify:
+
+- [ ] Cloud Functions API is enabled
+- [ ] Cloud Build API is enabled
+- [ ] Artifact Registry API is enabled
+- [ ] Firebase Extensions API is enabled
+- [ ] Service account has **Firebase Admin** role (not just the service agent role)
+- [ ] Service account has **Cloud Functions Admin** role
+- [ ] Service account has **Service Account User** role
+- [ ] Service account has **Cloud Build Service Account** role
 
