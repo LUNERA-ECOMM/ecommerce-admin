@@ -1,9 +1,11 @@
 'use client';
 
+import { useEffect } from 'react';
 import AuthButton from '@/components/AuthButton';
 import CategoryCarousel from '@/components/CategoryCarousel';
 import ProductCard from '@/components/ProductCard';
 import { useCategories, useProductsByCategory } from '@/lib/firestore-data';
+import { trackCategoryView } from '@/lib/analytics';
 import dynamic from 'next/dynamic';
 
 const AdminRedirect = dynamic(() => import('@/components/AdminRedirect'), {
@@ -20,6 +22,31 @@ export default function CategoryPageTemplate({ categoryId, category: categoryPro
     : categoryProp;
   const products = categoryId ? fetchedProducts : productsProp;
   const loading = categoryId ? productsLoading : false;
+
+  // Track category view when page loads
+  useEffect(() => {
+    if (category?.id) {
+      trackCategoryView(category.id);
+    }
+  }, [category?.id]);
+
+  // Show loading state if category is not yet loaded
+  if (!category && categoryId) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-slate-500">Loading category...</div>
+      </div>
+    );
+  }
+
+  if (!category) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-slate-500">Category not found.</div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-white via-pink-50/40 to-white">
       <AdminRedirect />
@@ -50,14 +77,14 @@ export default function CategoryPageTemplate({ categoryId, category: categoryPro
       <section className="px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
         <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 text-center">
           <span className="rounded-full bg-white/70 px-4 py-1 text-xs font-medium uppercase tracking-[0.3em] text-pink-400">
-            {category.label}
+            {category.label || category.name || 'Collection'}
           </span>
           <h2 className="text-3xl font-light text-slate-800 sm:text-5xl">
-            {category.description}
+            {category.description || 'Discover our curated collection.'}
           </h2>
           <p className="text-base text-slate-600 sm:text-lg">
             Discover the full assortment of best-sellers, refreshed styles, and timeless pieces in
-            our {category.label.toLowerCase()} collection.
+            our {(category.label || category.name || 'collection').toLowerCase()} collection.
           </p>
         </div>
       </section>

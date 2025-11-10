@@ -16,20 +16,53 @@ export default function Home() {
   const { products, loading: productsLoading } = useAllProducts();
 
   const categoryPreviews = useMemo(() => {
-    return categories.map((category) => {
-      const categoryProducts = products
-        .filter((product) => product.categoryId === category.id)
-        .sort((a, b) => {
-          const aViews = a.metrics?.totalViews || 0;
-          const bViews = b.metrics?.totalViews || 0;
-          return bViews - aViews;
-        })
-        .slice(0, 4);
-      return {
-        category,
-        products: categoryProducts,
-      };
-    });
+    const filtered = categories
+      .map((category) => {
+        // Use previewProductIds if set, otherwise fall back to top products
+        let categoryProducts = [];
+        if (category.previewProductIds && category.previewProductIds.length > 0) {
+          // Get products by their IDs in the order specified
+          categoryProducts = category.previewProductIds
+            .map((productId) => products.find((p) => p.id === productId))
+            .filter(Boolean)
+            .map((product) => ({
+              id: product.id,
+              image: product.image, // Use the image from the product
+            }));
+        } else {
+          // Fallback: get top products by views, but only include those with images
+          categoryProducts = products
+            .filter((product) => product.categoryId === category.id && product.image)
+            .sort((a, b) => {
+              const aViews = a.metrics?.totalViews || 0;
+              const bViews = b.metrics?.totalViews || 0;
+              return bViews - aViews;
+            })
+            .slice(0, 4)
+            .map((product) => ({
+              id: product.id,
+              image: product.image, // Only include products with actual images
+            }));
+        }
+
+        // Check if category has any products at all (not just preview products)
+        const hasAnyProducts = products.some((product) => product.categoryId === category.id);
+
+        return {
+          category,
+          products: categoryProducts,
+          hasAnyProducts,
+        };
+      })
+      .filter(({ category, hasAnyProducts }) => {
+        if (!hasAnyProducts) {
+          console.log(`[Category Filter] Hiding category "${category.name || category.label}" (slug: ${category.slug}) - no products assigned`);
+          return false;
+        }
+        return true;
+      });
+
+    return filtered;
   }, [categories, products]);
 
   const loading = categoriesLoading || productsLoading;

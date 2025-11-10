@@ -7,12 +7,18 @@ service cloud.firestore {
       allow read: if true;
       allow write: if request.auth != null
                    && request.auth.token.email == "arbengrepi@gmail.com";
+      // Allow authenticated users to update metrics only (for analytics tracking)
+      allow update: if request.auth != null
+                    && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['name', 'slug', 'description', 'imageUrl', 'active', 'previewProductIds', 'createdAt']));
     }
 
     match /products/{productId} {
       allow read: if true;
       allow write: if request.auth != null
                    && request.auth.token.email == "arbengrepi@gmail.com";
+      // Allow authenticated users to update metrics only (for analytics tracking)
+      allow update: if request.auth != null
+                    && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['name', 'slug', 'categoryId', 'supplierId', 'basePrice', 'description', 'images', 'careInstructions', 'tags', 'active', 'createdAt']));
     }
 
     match /products/{productId}/variants/{variantId} {
@@ -40,6 +46,12 @@ service cloud.firestore {
     match /carts/{cartId} {
       allow read, write: if request.auth != null
                          && request.auth.uid == resource.data.userId;
+    }
+
+    match /userEvents/{eventId} {
+      allow write: if request.auth != null;
+      allow read: if request.auth != null
+                   && request.auth.token.email == "arbengrepi@gmail.com";
     }
 
     // Deny everything else by default

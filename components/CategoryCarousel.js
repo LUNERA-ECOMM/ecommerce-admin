@@ -3,23 +3,33 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useMemo } from 'react';
-import { useCategories } from '@/lib/firestore-data';
+import { useCategories, useAllProducts } from '@/lib/firestore-data';
+import { trackCategoryView } from '@/lib/analytics';
 
 export default function CategoryCarousel({ align = 'center' }) {
   const pathname = usePathname();
   const { categories, loading } = useCategories();
+  const { products } = useAllProducts();
 
-  const navItems = useMemo(
-    () => [
+  const navItems = useMemo(() => {
+    // Filter categories that have products
+    const categoriesWithProducts = categories.filter((category) => {
+      const hasProducts = products.some((product) => product.categoryId === category.id);
+      if (!hasProducts) {
+        console.log(`[Category Filter] Hiding category "${category.name || category.label}" (slug: ${category.slug}) from carousel - no products assigned`);
+      }
+      return hasProducts;
+    });
+
+    return [
       { href: '/', value: 'all', label: 'All Categories' },
-      ...categories.map((category) => ({
+      ...categoriesWithProducts.map((category) => ({
         href: `/${category.slug}`,
         value: category.slug,
         label: category.label,
       })),
-    ],
-    [categories]
-  );
+    ];
+  }, [categories, products]);
 
   const isActive = (item) =>
     (item.value === 'all' && pathname === '/') || pathname === item.href;
@@ -34,20 +44,30 @@ export default function CategoryCarousel({ align = 'center' }) {
         aria-label="Browse categories"
       >
         <ul className={`flex w-full min-w-max flex-nowrap items-center gap-2 ${containerAlignment}`}>
-          {navItems.map((item) => (
-            <li key={item.value} className="flex-none">
-              <Link
-                href={item.href}
-                className={`inline-flex items-center rounded-full border px-4 py-2 text-sm font-medium transition ${
-                  isActive(item)
-                    ? 'border-pink-300 bg-white shadow-sm text-slate-800'
-                    : 'border-transparent bg-white/70 text-slate-500 hover:border-pink-200 hover:text-slate-700'
-                }`}
-              >
-                {item.label}
-              </Link>
-            </li>
-          ))}
+          {navItems.map((item) => {
+            const category = item.value !== 'all' ? categories.find((cat) => cat.slug === item.value) : null;
+            const handleClick = () => {
+              if (category) {
+                trackCategoryView(category.id);
+              }
+            };
+
+            return (
+              <li key={item.value} className="flex-none">
+                <Link
+                  href={item.href}
+                  onClick={handleClick}
+                  className={`inline-flex items-center rounded-full border px-4 py-2 text-sm font-medium transition ${
+                    isActive(item)
+                      ? 'border-pink-300 bg-white shadow-sm text-slate-800'
+                      : 'border-transparent bg-white/70 text-slate-500 hover:border-pink-200 hover:text-slate-700'
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       </div>
 

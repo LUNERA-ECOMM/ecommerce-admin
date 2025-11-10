@@ -1,5 +1,7 @@
 'use client';
 
+import { trackProductView } from '@/lib/analytics';
+
 const categoryLabels = {
   lingerie: 'Lingerie',
   underwear: 'Underwear',
@@ -9,6 +11,10 @@ const categoryLabels = {
 };
 
 export default function ProductCard({ product }) {
+  const handleClick = () => {
+    trackProductView(product.id);
+  };
+
   const handleAddToCart = () => {
     // TODO: Implement cart functionality
     console.log('Added to cart:', product.name);
@@ -17,7 +23,10 @@ export default function ProductCard({ product }) {
   const categoryLabel = categoryLabels[product.category] ?? 'Collection';
 
   return (
-    <div className="group flex w-full flex-col overflow-hidden rounded-2xl bg-white/90 shadow-sm ring-1 ring-pink-100/70 transition hover:-translate-y-1 hover:shadow-xl sm:rounded-3xl">
+    <div
+      onClick={handleClick}
+      className="group flex w-full cursor-pointer flex-col overflow-hidden rounded-2xl bg-white/90 shadow-sm ring-1 ring-pink-100/70 transition hover:-translate-y-1 hover:shadow-xl sm:rounded-3xl"
+    >
       <div className="aspect-[3/4] w-full overflow-hidden bg-pink-50/70 sm:aspect-[3/4]">
         <img
           src={product.image}

@@ -1,18 +1,24 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { collection, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { getFirebaseDb } from '@/lib/firebase';
 import CategoryModalButton from '@/components/admin/CreateCategoryButton';
+import CategoryTable from '@/components/admin/CategoryTable';
 import Toast from '@/components/admin/Toast';
 
 export default function CategoriesAdminPage() {
   const router = useRouter();
   const db = getFirebaseDb();
   const [categories, setCategories] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [expandedCategories, setExpandedCategories] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState(null);
+
+  const visibleCategories = useMemo(() => categories.filter((cat) => cat.active !== false), [categories]);
+  const hiddenCategories = useMemo(() => categories.filter((cat) => cat.active === false), [categories]);
 
   useEffect(() => {
     if (!db) {
@@ -21,7 +27,7 @@ export default function CategoriesAdminPage() {
     }
 
     const categoriesQuery = query(collection(db, 'categories'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(
+    const unsubscribeCategories = onSnapshot(
       categoriesQuery,
       (snapshot) => {
         const data = snapshot.docs.map((snapshotDoc) => ({ id: snapshotDoc.id, ...snapshotDoc.data() }));
@@ -35,8 +41,60 @@ export default function CategoriesAdminPage() {
       }
     );
 
-    return () => unsubscribe();
+    // Also fetch products to show in expandable sections
+    // Filter active products client-side
+    const productsQuery = query(collection(db, 'products'));
+    const unsubscribeProducts = onSnapshot(
+      productsQuery,
+      async (snapshot) => {
+        const productsData = snapshot.docs
+          .map((snapshotDoc) => ({ id: snapshotDoc.id, ...snapshotDoc.data() }))
+          .filter((product) => product.active !== false);
+
+        // Fetch variants for each product to calculate total stock
+        const productsWithStock = await Promise.all(
+          productsData.map(async (product) => {
+            try {
+              const variantsSnapshot = await getDocs(collection(db, 'products', product.id, 'variants'));
+              const variants = variantsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+              const totalStock = variants.reduce((sum, variant) => sum + (variant.stock || 0), 0);
+              return { ...product, totalStock, variants };
+            } catch (error) {
+              console.warn(`Failed to load variants for product ${product.id}`, error);
+              return { ...product, totalStock: 0, variants: [] };
+            }
+          })
+        );
+
+        setProducts(productsWithStock);
+      },
+      (error) => {
+        // Silently fail - products are optional for this page
+        console.warn('Failed to load products', error);
+      }
+    );
+
+    return () => {
+      unsubscribeCategories();
+      unsubscribeProducts();
+    };
   }, [db]);
+
+  const toggleExpanded = (categoryId) => {
+    setExpandedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(categoryId)) {
+        next.delete(categoryId);
+      } else {
+        next.add(categoryId);
+      }
+      return next;
+    });
+  };
+
+  const getCategoryProducts = (categoryId) => {
+    return products.filter((product) => product.categoryId === categoryId);
+  };
 
   const handleToggleActive = async (category) => {
     if (!db) {
@@ -52,6 +110,23 @@ export default function CategoriesAdminPage() {
     } catch (error) {
       console.error('Failed to update category', error);
       setMessage({ type: 'error', text: 'Failed to update category. Check console for details.' });
+    }
+  };
+
+  const handleUpdatePreviewProducts = async (categoryId, previewProductIds) => {
+    if (!db) {
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, 'categories', categoryId), {
+        previewProductIds: previewProductIds.slice(0, 4), // Max 4 products
+        updatedAt: serverTimestamp(),
+      });
+      setMessage({ type: 'success', text: 'Preview products updated.' });
+    } catch (error) {
+      console.error('Failed to update preview products', error);
+      setMessage({ type: 'error', text: 'Failed to update preview products. Check console for details.' });
     }
   };
 
@@ -80,82 +155,43 @@ export default function CategoriesAdminPage() {
 
       <Toast message={message} onDismiss={() => setMessage(null)} />
 
-      <section className="overflow-hidden rounded-3xl border border-zinc-200/70">
-        <table className="min-w-full divide-y divide-zinc-100 bg-white text-sm">
-          <thead className="bg-zinc-50 text-zinc-500">
-            <tr>
-              <th className="px-4 py-3 text-left font-medium">Name</th>
-              <th className="px-4 py-3 text-left font-medium">Slug</th>
-              <th className="px-4 py-3 text-left font-medium">Status</th>
-              <th className="px-4 py-3 text-left font-medium">Created</th>
-              <th className="px-4 py-3 text-right font-medium">Action</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-100">
-            {loading ? (
-              <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-zinc-400">
-                  Loading categories…
-                </td>
-              </tr>
-            ) : categories.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-zinc-400">
-                  No categories yet. Create the first one to get started.
-                </td>
-              </tr>
-            ) : (
-              categories.map((category) => (
-                <tr key={category.id} className="hover:bg-zinc-50/80">
-                  <td className="px-4 py-3">
-                    <div className="flex flex-col">
-                      <span className="font-medium text-zinc-800">{category.name}</span>
-                      {category.description ? (
-                        <span className="text-xs text-zinc-400">{category.description}</span>
-                      ) : null}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-zinc-500">{category.slug || '—'}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-                        category.active === false
-                          ? 'bg-rose-100 text-rose-600'
-                          : 'bg-emerald-100 text-emerald-600'
-                      }`}
-                    >
-                      {category.active === false ? 'Hidden' : 'Visible'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-zinc-500">
-                    {category.createdAt?.toDate ? category.createdAt.toDate().toLocaleDateString() : '—'}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <CategoryModalButton
-                        mode="edit"
-                        triggerLabel="Edit"
-                        category={category}
-                        onCompleted={(updatedCategory) => {
-                          setMessage({ type: 'success', text: `Category "${updatedCategory.name || category.name}" saved.` });
-                        }}
-                        className="rounded-full border border-zinc-200 px-3 py-1 text-xs font-medium text-zinc-600 transition hover:border-emerald-200 hover:bg-emerald-50/50"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleToggleActive(category)}
-                        className="rounded-full border border-zinc-200 px-3 py-1 text-xs font-medium text-zinc-600 transition hover:border-emerald-200 hover:bg-emerald-50/50"
-                      >
-                        {category.active === false ? 'Unhide' : 'Hide'}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      {/* Visible Categories */}
+      <section className="space-y-4">
+        <h2 className="text-lg font-semibold text-zinc-800">Visible Categories</h2>
+        <div className="overflow-hidden rounded-3xl border border-zinc-200/70">
+          <CategoryTable
+            categories={visibleCategories}
+            loading={loading}
+            onToggleExpanded={toggleExpanded}
+            expandedCategories={expandedCategories}
+            getCategoryProducts={getCategoryProducts}
+            onToggleActive={handleToggleActive}
+            onUpdatePreviewProducts={handleUpdatePreviewProducts}
+            db={db}
+            setMessage={setMessage}
+          />
+        </div>
       </section>
+
+      {/* Hidden Categories */}
+      {hiddenCategories.length > 0 && (
+        <section className="space-y-4">
+          <h2 className="text-lg font-semibold text-zinc-800">Hidden Categories</h2>
+          <div className="overflow-hidden rounded-3xl border border-zinc-200/70">
+            <CategoryTable
+              categories={hiddenCategories}
+              loading={false}
+              onToggleExpanded={toggleExpanded}
+              expandedCategories={expandedCategories}
+              getCategoryProducts={getCategoryProducts}
+              onToggleActive={handleToggleActive}
+              onUpdatePreviewProducts={handleUpdatePreviewProducts}
+              db={db}
+              setMessage={setMessage}
+            />
+          </div>
+        </section>
+      )}
     </div>
   );
 }

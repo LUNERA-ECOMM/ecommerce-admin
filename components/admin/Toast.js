@@ -32,7 +32,7 @@ export default function Toast({ message, onDismiss, duration = 3000 }) {
       }`}
     >
       <div
-        className={`rounded-xl border px-4 py-3 text-sm shadow-lg ${
+        className={`rounded-xl border px-6 py-4 text-base font-medium shadow-lg min-w-[300px] max-w-md ${
           message.type === 'success'
             ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
             : 'border-rose-200 bg-rose-50 text-rose-700'

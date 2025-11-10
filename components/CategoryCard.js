@@ -1,38 +1,61 @@
 'use client';
 
 import Link from 'next/link';
-
-const buildFallbackItem = (category, index) => ({
-  id: `placeholder-${index}`,
-  image: `https://picsum.photos/seed/${category.value}-placeholder-${index}/400/500`,
-});
+import { trackCategoryView } from '@/lib/analytics';
 
 export default function CategoryCard({ category, products }) {
-  const previewItems =
-    products.length >= 4
-      ? products.slice(0, 4)
-      : products.length > 0
-      ? Array.from({ length: 4 }, (_, index) => products[index % products.length])
-      : Array.from({ length: 4 }, (_, index) => buildFallbackItem(category, index));
+  const handleClick = (e) => {
+    // Don't prevent navigation - track in background
+    trackCategoryView(category.id).catch(console.error);
+  };
+  // Use the products provided (which should be the preview products from the database)
+  // If we have products, use them (up to 4)
+  // If we don't have enough products, fill with placeholders
+  // If no products at all, show placeholder icon
+  const previewItems = products.length > 0
+    ? products.slice(0, 4)
+    : [];
+  
+  // Fill remaining slots if we have less than 4 products
+  const itemsToShow = previewItems.length < 4
+    ? [...previewItems, ...Array(4 - previewItems.length).fill(null)]
+    : previewItems;
 
   return (
     <Link
       href={`/${category.slug}`}
+      onClick={handleClick}
       className="group flex flex-col overflow-hidden rounded-3xl border border-pink-100/70 bg-white/90 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
       prefetch
       aria-label={`Explore ${category.label} collection`}
     >
       <div className="grid grid-cols-2 grid-rows-2 gap-1 p-3 sm:gap-2 sm:p-4">
-        {previewItems.map((item, index) => (
+        {itemsToShow.map((item, index) => (
           <div
-            key={`${category.value}-${item?.id ?? index}-${index}`}
-            className="overflow-hidden rounded-2xl bg-pink-50/80 sm:rounded-3xl"
+            key={`${category.id}-${item?.id ?? index}-${index}`}
+            className="overflow-hidden rounded-2xl bg-pink-50/80 sm:rounded-3xl aspect-square flex items-center justify-center"
           >
-            <img
-              src={item?.image}
-              alt={`${category.label} highlight ${index + 1}`}
-              className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-            />
+            {item && item.image ? (
+              <img
+                src={item.image}
+                alt={`${category.label} highlight ${index + 1}`}
+                className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+              />
+            ) : (
+              <svg
+                className="h-12 w-12 text-pink-200 sm:h-16 sm:w-16"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={1.5}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
+                />
+              </svg>
+            )}
           </div>
         ))}
       </div>

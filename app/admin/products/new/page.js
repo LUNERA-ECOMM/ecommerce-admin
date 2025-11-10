@@ -1,13 +1,15 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { getFirebaseDb } from '@/lib/firebase';
 import CategorySelector from '@/components/admin/CategorySelector';
 import SupplierSelector from '@/components/admin/SupplierSelector';
 import InfoIcon from '@/components/admin/InfoIcon';
 import Toast from '@/components/admin/Toast';
+import ImageManager from '@/components/admin/ImageManager';
+import UnsavedChangesDialog from '@/components/admin/UnsavedChangesDialog';
 
 const initialFormState = {
   name: '',
@@ -19,6 +21,8 @@ const initialFormState = {
   careInstructions: '',
   tags: '',
   active: true,
+  images: [],
+  stock: '',
   variant: {
     size: '',
     color: '',
@@ -29,11 +33,22 @@ const initialFormState = {
 
 export default function NewProductPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const db = getFirebaseDb();
+  const categoryIdFromUrl = searchParams?.get('categoryId');
 
   const [form, setForm] = useState(initialFormState);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState(null);
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState(null);
+
+  // Pre-fill category if provided in URL
+  useEffect(() => {
+    if (categoryIdFromUrl) {
+      setForm((prev) => ({ ...prev, categoryId: categoryIdFromUrl }));
+    }
+  }, [categoryIdFromUrl]);
 
   if (!db) {
     return (
@@ -66,6 +81,62 @@ export default function NewProductPage() {
     setForm(initialFormState);
   };
 
+  // Check for unsaved changes
+  const hasUnsavedChanges = useCallback(() => {
+    const isEmpty = !form.name.trim() && !form.slug.trim() && !form.categoryId.trim() && !form.basePrice && form.images.length === 0;
+    return !isEmpty;
+  }, [form]);
+
+  // Handle navigation attempts
+  const handleNavigation = (path) => {
+    if (hasUnsavedChanges()) {
+      setPendingNavigation(() => () => router.push(path));
+      setShowUnsavedDialog(true);
+    } else {
+      router.push(path);
+    }
+  };
+
+  // Handle save from dialog
+  const handleSaveFromDialog = async () => {
+    setShowUnsavedDialog(false);
+    // Trigger form submit
+    const formElement = document.querySelector('form');
+    if (formElement) {
+      formElement.requestSubmit();
+    }
+    // Wait a bit for save to complete, then navigate
+    setTimeout(() => {
+      if (pendingNavigation) {
+        pendingNavigation();
+        setPendingNavigation(null);
+      }
+    }, 500);
+  };
+
+  // Handle discard from dialog
+  const handleDiscardFromDialog = () => {
+    setShowUnsavedDialog(false);
+    resetForm();
+    if (pendingNavigation) {
+      pendingNavigation();
+      setPendingNavigation(null);
+    }
+  };
+
+  // Block browser navigation
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (hasUnsavedChanges()) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges]);
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setMessage(null);
@@ -96,7 +167,10 @@ export default function NewProductPage() {
           .split(',')
           .map((tag) => tag.trim())
           .filter(Boolean),
+        images: form.images || [],
         active: form.active,
+        // Only include stock if no variant is being created
+        ...(!form.variant.size.trim() && !form.variant.color.trim() && !form.variant.stock && !form.variant.priceOverride && form.stock ? { stock: parseInt(form.stock, 10) || 0 } : {}),
         metrics: {
           totalViews: 0,
           lastViewedAt: null,
@@ -142,12 +216,24 @@ export default function NewProductPage() {
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-8 px-6 py-16">
+      <UnsavedChangesDialog
+        isOpen={showUnsavedDialog}
+        onSave={handleSaveFromDialog}
+        onDiscard={handleDiscardFromDialog}
+        onCancel={() => {
+          setShowUnsavedDialog(false);
+          setPendingNavigation(null);
+        }}
+      />
       <header className="space-y-2">
         <button
-          onClick={() => router.push('/admin/overview')}
+          onClick={() => {
+            const path = categoryIdFromUrl ? '/admin/categories' : '/admin/overview';
+            handleNavigation(path);
+          }}
           className="text-sm font-medium text-emerald-600 transition hover:text-emerald-500"
         >
-          ← Back to admin
+          ← {categoryIdFromUrl ? 'Back to categories' : 'Back to admin'}
         </button>
         <h1 className="text-3xl font-semibold text-zinc-900">Add new product</h1>
         <p className="text-base text-zinc-500">
@@ -225,6 +311,22 @@ export default function NewProductPage() {
                 required
               />
             </label>
+            {!form.variant.size.trim() && !form.variant.color.trim() && !form.variant.stock && !form.variant.priceOverride && (
+              <label className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-zinc-600">Stock</span>
+                  <InfoIcon tooltip="Product stock quantity. Only shown when no variant is being created. If you create a variant, stock will be managed per variant." />
+                </div>
+                <input
+                  type="number"
+                  min="0"
+                  value={form.stock}
+                  onChange={handleChange('stock')}
+                  className="rounded-xl border border-zinc-200 px-4 py-2 text-sm focus:border-emerald-400 focus:outline-none"
+                  placeholder="0"
+                />
+              </label>
+            )}
             <label className="flex items-center gap-2 pt-7">
               <input
                 type="checkbox"
@@ -271,6 +373,14 @@ export default function NewProductPage() {
               placeholder="new, satin, bridal"
             />
           </label>
+
+          <div className="pt-2">
+            <ImageManager
+              images={form.images || []}
+              onChange={(images) => setForm((prev) => ({ ...prev, images }))}
+              maxImages={5}
+            />
+          </div>
         </section>
 
         <section className="space-y-4">

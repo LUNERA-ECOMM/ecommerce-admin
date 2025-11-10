@@ -34,11 +34,11 @@ export default function EcommerceOverview() {
 
   const quickLinks = [
     { href: '/admin/products/new', label: 'Create new product' },
+    { href: '/admin/products', label: 'View all products' },
     { href: '/admin/categories', label: 'Manage categories' },
-    { href: '/admin/plans/products', label: 'Product management plan' },
-    { href: '/admin/plans/promotions', label: 'Promotion strategy plan' },
+    { href: '/admin/promotions', label: 'Manage promotions' },
+    { href: '/admin/analytics', label: 'View analytics' },
     { href: '/admin/plans/orders', label: 'Order operations plan' },
-    { href: '/admin/plans/analytics', label: 'Engagement & analytics plan' },
   ];
 
   return (
