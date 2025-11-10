@@ -75,13 +75,46 @@ NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=G-G6C5N0K2DX
 - Verify the email matches exactly: `arbengrepi@gmail.com` (case-sensitive)
 - Check that the authentication state is being properly detected
 
+## Step 5: Server-Side Rendering Setup (Optional but Recommended)
+
+The app now uses Server Components for better SEO and performance. Firebase Admin SDK is used for server-side data fetching.
+
+### For Local Development
+
+Firebase Admin SDK will use Application Default Credentials automatically when deployed to Firebase Hosting/Cloud Functions. For local development, you have two options:
+
+**Option 1: Use Application Default Credentials (Recommended)**
+1. Install Google Cloud SDK: https://cloud.google.com/sdk/docs/install
+2. Run: `gcloud auth application-default login`
+3. The app will automatically use these credentials
+
+**Option 2: Use Service Account Key (Alternative)**
+1. Go to [Firebase Console](https://console.firebase.google.com/) → Project Settings → Service Accounts
+2. Click "Generate New Private Key"
+3. Save the JSON file securely (don't commit it!)
+4. Add to `.env.local`:
+   ```env
+   FIREBASE_PROJECT_ID=ecommerce-2f366
+   FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@ecommerce-2f366.iam.gserviceaccount.com
+   FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+   ```
+
+**Note:** On Firebase Hosting/Cloud Functions, credentials are automatically available - no setup needed!
+
+### Benefits of Server-Side Rendering
+
+- ✅ **SEO**: Content visible in initial HTML
+- ✅ **Performance**: Faster initial page load
+- ✅ **User Experience**: Content visible immediately (no loading spinners)
+- ✅ **Real-time Updates**: Still get Firebase real-time updates after initial load
+
 ## Next Steps (Optional Enhancements)
 
 Based on Gemini's suggestions, you might want to explore:
 
 1. **Firebase Custom Claims** - For more robust admin role management
 2. **Firebase Security Rules** - To protect your data at the database level
-3. **Firebase Admin SDK** - For server-side admin operations in API routes
+3. **Server-Side Rendering** - Already implemented! See Step 5 above
 
 ## Verification Checklist
 
