@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { trackProductView } from '@/lib/analytics';
 
 const categoryLabels = {
@@ -10,29 +11,47 @@ const categoryLabels = {
   dresses: 'Dresses',
 };
 
-export default function ProductCard({ product }) {
-  const handleClick = () => {
-    trackProductView(product.id);
-  };
+export default function ProductCard({ product, categorySlug }) {
+  const categoryLabel = categoryLabels[product.category] ?? 'Collection';
 
-  const handleAddToCart = () => {
+  const handleAddToCart = (event) => {
+    event.preventDefault();
     // TODO: Implement cart functionality
     console.log('Added to cart:', product.name);
   };
 
-  const categoryLabel = categoryLabels[product.category] ?? 'Collection';
-
   return (
-    <div
-      onClick={handleClick}
-      className="group flex w-full cursor-pointer flex-col overflow-hidden rounded-2xl bg-white/90 shadow-sm ring-1 ring-pink-100/70 transition hover:-translate-y-1 hover:shadow-xl sm:rounded-3xl"
+    <Link
+      href={`/${categorySlug}/${product.slug}`}
+      onClick={() => trackProductView(product.id)}
+      className="group flex w-full flex-col overflow-hidden rounded-2xl bg-white/90 shadow-sm ring-1 ring-pink-100/70 transition hover:-translate-y-1 hover:shadow-xl sm:rounded-3xl"
+      prefetch
     >
       <div className="aspect-[3/4] w-full overflow-hidden bg-pink-50/70 sm:aspect-[3/4]">
-        <img
-          src={product.image}
-          alt={product.name}
-          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-        />
+        {product.image ? (
+          <img
+            src={product.image}
+            alt={product.name}
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-pink-200">
+            <svg className="h-10 w-10" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M3 8a2 2 0 012-2h14a2 2 0 012 2v9a2 2 0 01-2 2h-5l-2 3-2-3H5a2 2 0 01-2-2V8z"
+              />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M9 10h.01M15 10h.01M9.5 15a3.5 3.5 0 005 0"
+              />
+            </svg>
+          </div>
+        )}
       </div>
       <div className="flex flex-1 flex-col gap-3 p-3 sm:p-5">
         <div>
@@ -48,6 +67,7 @@ export default function ProductCard({ product }) {
             ${product.price.toFixed(2)}
           </p>
           <button
+            type="button"
             onClick={handleAddToCart}
             className="flex h-10 w-10 items-center justify-center rounded-full border border-pink-200/70 bg-white/90 text-pink-500 transition hover:bg-pink-100 hover:text-pink-600"
             aria-label={`Add ${product.name} to cart`}
@@ -59,7 +79,6 @@ export default function ProductCard({ product }) {
           </button>
         </div>
       </div>
-    </div>
+    </Link>
   );
 }
-

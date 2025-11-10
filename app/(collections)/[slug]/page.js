@@ -1,31 +1,22 @@
-'use client';
-
+import { notFound } from 'next/navigation';
 import CategoryPageTemplate from '@/components/CategoryPageTemplate';
-import { useCategories } from '@/lib/firestore-data';
-import { useParams } from 'next/navigation';
+import { getServerSideCategoryBySlug, getServerSideProductsByCategory } from '@/lib/firestore-server';
 
-export default function CategoryPage() {
-  const params = useParams();
-  const slug = params?.slug;
-  const { categories, loading } = useCategories();
-  const category = categories.find((cat) => cat.slug === slug);
+export default async function CategoryPage({ params }) {
+  const { slug } = await params;
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-slate-500">Loading...</div>
-      </div>
-    );
-  }
-
+  const category = await getServerSideCategoryBySlug(slug);
   if (!category) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-slate-500">Category not found.</div>
-      </div>
-    );
+    notFound();
   }
 
-  return <CategoryPageTemplate categoryId={category.id} />;
-}
+  const products = await getServerSideProductsByCategory(category.id);
 
+  return (
+    <CategoryPageTemplate
+      categoryId={category.id}
+      category={category}
+      products={products}
+    />
+  );
+}
