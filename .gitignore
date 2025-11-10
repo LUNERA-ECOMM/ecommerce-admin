@@ -20,6 +20,12 @@
 # logs
 *.log 
 
+# Ignore all Markdown files
+*.md
+
+# But keep README.md
+!README.md
+
 
 # production
 /build
