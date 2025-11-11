@@ -30,7 +30,7 @@ export default function PageTransitionBar() {
 
   return (
     <div
-      className={`pointer-events-none fixed left-0 top-0 z-[9999] h-1 origin-left bg-gradient-to-r from-pink-500 via-pink-400 to-pink-300 transition-all duration-200 ease-out ${
+      className={`pointer-events-none fixed left-0 top-0 z-[9999] h-1 origin-left bg-gradient-to-r from-primary via-primary/80 to-primary/60 transition-all duration-200 ease-out ${
         isVisible ? 'opacity-100' : 'opacity-0'
       }`}
       style={{ transform: `scaleX(${progress / 100})` }}

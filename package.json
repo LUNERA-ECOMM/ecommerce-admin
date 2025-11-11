@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "seed:dummy": "node scripts/seed-dummy-data.js",
-    "seed:clear": "node scripts/clear-dummy-data.js"
+    "seed:clear": "node scripts/clear-dummy-data.js",
+    "data:clear-all": "node scripts/clear-all-data.js",
+    "shopify:import": "node scripts/import-shopify-products.js"
   },
   "dependencies": {
     "firebase": "^12.5.0",

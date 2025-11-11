@@ -20,10 +20,10 @@ export default function CartPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-white via-pink-50/40 to-white">
+      <div className="min-h-screen bg-gradient-to-b from-white via-secondary/40 to-white">
         <div className="mx-auto flex max-w-6xl items-center justify-center px-4 py-32">
           <div className="text-center">
-            <div className="mb-4 inline-block h-8 w-8 animate-spin rounded-full border-4 border-pink-200 border-t-pink-500" />
+            <div className="mb-4 inline-block h-8 w-8 animate-spin rounded-full border-4 border-secondary border-t-primary" />
             <p className="text-slate-600">Loading cart...</p>
           </div>
         </div>
@@ -33,10 +33,10 @@ export default function CartPage() {
 
   if (cart.length === 0) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-white via-pink-50/40 to-white">
-        <header className="sticky top-0 z-40 border-b border-pink-100/70 bg-white/90 backdrop-blur">
+      <div className="min-h-screen bg-gradient-to-b from-white via-secondary/40 to-white">
+        <header className="sticky top-0 z-40 border-b border-secondary/70 bg-white/90 backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-            <Link href="/" className="text-sm font-medium text-pink-500 transition hover:text-pink-600">
+            <Link href="/" className="text-sm font-medium text-primary transition hover:text-primary">
               ← Back to shop
             </Link>
             <h1 className="text-xl font-light text-slate-800">Shopping Cart</h1>
@@ -47,7 +47,7 @@ export default function CartPage() {
         <main className="mx-auto flex max-w-2xl flex-col items-center justify-center px-4 py-32">
           <div className="text-center">
             <svg
-              className="mx-auto h-16 w-16 text-pink-200"
+              className="mx-auto h-16 w-16 text-secondary"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -63,7 +63,7 @@ export default function CartPage() {
             <p className="mt-2 text-slate-600">Start shopping to add items to your cart.</p>
             <Link
               href="/"
-              className="mt-6 inline-flex items-center justify-center rounded-full bg-pink-500 px-8 py-3 text-sm font-semibold uppercase tracking-[0.3em] text-white shadow-lg transition hover:bg-pink-400"
+              className="mt-6 inline-flex items-center justify-center rounded-full bg-primary px-8 py-3 text-sm font-semibold uppercase tracking-[0.3em] text-white shadow-lg transition hover:bg-primary/90"
             >
               Continue shopping
             </Link>
@@ -74,11 +74,11 @@ export default function CartPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white via-pink-50/40 to-white">
+    <div className="min-h-screen bg-gradient-to-b from-white via-secondary/40 to-white">
       <SignInNewsletterModal />
-      <header className="sticky top-0 z-40 border-b border-pink-100/70 bg-white/90 backdrop-blur">
+      <header className="sticky top-0 z-40 border-b border-secondary/70 bg-white/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-          <Link href="/" className="flex items-center gap-2 text-sm font-medium text-pink-500 transition hover:text-pink-600">
+          <Link href="/" className="flex items-center gap-2 text-sm font-medium text-primary transition hover:text-primary">
             <svg
               className="h-5 w-5"
               fill="none"
@@ -103,10 +103,10 @@ export default function CartPage() {
               {cart.map((item) => (
                 <div
                   key={`${item.productId}-${item.variantId || 'default'}`}
-                  className="flex gap-6 rounded-2xl border border-pink-100/70 bg-white/90 p-6 shadow-sm"
+                  className="flex gap-6 rounded-2xl border border-secondary/70 bg-white/90 p-6 shadow-sm"
                 >
                   {item.image && (
-                    <div className="h-24 w-24 flex-shrink-0 overflow-hidden rounded-xl bg-pink-50/70">
+                    <div className="h-24 w-24 flex-shrink-0 overflow-hidden rounded-xl bg-secondary/70">
                       <img src={item.image} alt={item.productName} className="h-full w-full object-cover" />
                     </div>
                   )}
@@ -121,7 +121,7 @@ export default function CartPage() {
                       <button
                         type="button"
                         onClick={() => removeFromCart(item.productId, item.variantId)}
-                        className="text-slate-400 transition hover:text-red-500"
+                        className="text-slate-400 transition hover:text-primary"
                         aria-label="Remove item"
                       >
                         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
@@ -134,7 +134,7 @@ export default function CartPage() {
                         <button
                           type="button"
                           onClick={() => updateQuantity(item.productId, item.variantId, item.quantity - 1)}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-pink-200 text-pink-600 transition hover:bg-pink-50"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-primary/30 text-primary transition hover:bg-secondary"
                           aria-label="Decrease quantity"
                         >
                           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
@@ -145,7 +145,7 @@ export default function CartPage() {
                         <button
                           type="button"
                           onClick={() => updateQuantity(item.productId, item.variantId, item.quantity + 1)}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-pink-200 text-pink-600 transition hover:bg-pink-50"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-primary/30 text-primary transition hover:bg-secondary"
                           aria-label="Increase quantity"
                         >
                           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
@@ -153,7 +153,7 @@ export default function CartPage() {
                           </svg>
                         </button>
                       </div>
-                      <p className="text-lg font-semibold text-pink-500">{formatPrice(item.priceAtAdd * item.quantity)}</p>
+                      <p className="text-lg font-semibold text-primary">{formatPrice(item.priceAtAdd * item.quantity)}</p>
                     </div>
                   </div>
                 </div>
@@ -163,7 +163,7 @@ export default function CartPage() {
 
           {/* Order Summary */}
           <div className="lg:col-span-1">
-            <div className="sticky top-24 rounded-2xl border border-pink-100/70 bg-white/90 p-6 shadow-sm">
+            <div className="sticky top-24 rounded-2xl border border-secondary/70 bg-white/90 p-6 shadow-sm">
               <h2 className="mb-6 text-lg font-semibold text-slate-800">Order Summary</h2>
               <div className="space-y-4">
                 <div className="flex justify-between text-sm text-slate-600">
@@ -179,7 +179,7 @@ export default function CartPage() {
                     Add {formatPrice(150 - subtotal)} more for free shipping
                   </p>
                 )}
-                <div className="border-t border-pink-100 pt-4">
+                <div className="border-t border-secondary pt-4">
                   <div className="flex justify-between text-lg font-semibold text-slate-800">
                     <span>Total</span>
                     <span>{formatPrice(total)}</span>
@@ -241,4 +241,5 @@ export default function CartPage() {
     </div>
   );
 }
+
 

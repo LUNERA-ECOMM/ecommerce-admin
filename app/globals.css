@@ -3,11 +3,17 @@
 :root {
   --background: #ffffff;
   --foreground: #1f2937;
+  /* Primary color (Pink - for text, buttons, accents) */
+  --primary: #ec4899;
+  /* Secondary color (Pink - for backgrounds) */
+  --secondary: #fdf2f8;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-secondary: var(--secondary);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }

@@ -49,7 +49,7 @@ export default function AuthButton() {
   // Google's official button guidelines - single button that works on all screen sizes
   // Reference: https://developers.google.com/identity/branding-guidelines
   const googleButtonClasses = 'flex items-center justify-center gap-3 rounded border border-[#DADCE0] bg-white px-4 py-2.5 text-sm font-medium text-[#3C4043] shadow-sm transition-all hover:bg-[#F8F9FA] hover:shadow-md mr-5 md:mr-10 lg:mr-20';
-  const signOutButtonClasses = 'flex items-center justify-center gap-2 rounded-full border border-pink-200/70 bg-white/80 px-5 py-2.5 text-sm font-medium text-pink-600 shadow-sm transition-colors hover:bg-pink-100 hover:text-pink-700 mr-5 md:mr-10 lg:mr-20';
+  const signOutButtonClasses = 'flex items-center justify-center gap-2 rounded-full border border-primary/30 bg-white/80 px-5 py-2.5 text-sm font-medium text-primary shadow-sm transition-colors hover:bg-secondary hover:text-primary mr-5 md:mr-10 lg:mr-20';
 
   // Official Google logo SVG
   const GoogleLogo = () => (
@@ -76,7 +76,7 @@ export default function AuthButton() {
 
     return (
       <div className="flex items-center gap-3">
-        <span className="hidden text-sm text-pink-500 italic sm:inline">{welcomeLabel}</span>
+        <span className="hidden text-sm text-primary italic sm:inline">{welcomeLabel}</span>
         <button
           onClick={handleSignOut}
           className={signOutButtonClasses}
@@ -99,4 +99,5 @@ export default function AuthButton() {
     </button>
   );
 }
+
 

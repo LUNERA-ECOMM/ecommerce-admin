@@ -88,9 +88,9 @@ export default function SignInNewsletterModal() {
 
         <div className="text-center">
           {/* Icon */}
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-pink-100">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-secondary">
             <svg
-              className="h-8 w-8 text-pink-500"
+              className="h-8 w-8 text-primary"
               fill="none"
               viewBox="0 0 24 24"
               strokeWidth="2"
@@ -168,7 +168,7 @@ export default function SignInNewsletterModal() {
           {/* Divider */}
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-pink-100" />
+              <div className="w-full border-t border-secondary" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
               <span className="bg-white px-2 text-slate-500">Or</span>
@@ -188,12 +188,12 @@ export default function SignInNewsletterModal() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="your@email.com"
                 required
-                className="flex-1 rounded-xl border border-pink-200 px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-pink-400 focus:outline-none focus:ring-2 focus:ring-pink-200"
+                className="flex-1 rounded-xl border border-primary/30 px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-secondary"
               />
               <button
                 type="submit"
                 disabled={newsletterSubscribed || !email}
-                className="rounded-xl bg-pink-500 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-pink-400 disabled:opacity-50"
+                className="rounded-xl bg-primary px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:opacity-50"
               >
                 {newsletterSubscribed ? (
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
@@ -222,4 +222,5 @@ export default function SignInNewsletterModal() {
     </div>
   );
 }
+
 

@@ -46,8 +46,8 @@ export default function CategoryCarousel({ align = 'center' }) {
                   href={item.href}
                   className={`inline-flex items-center rounded-full border px-4 py-2 text-sm font-medium transition ${
                     isActive(item)
-                      ? 'border-pink-300 bg-white shadow-sm text-slate-800'
-                      : 'border-transparent bg-white/70 text-slate-500 hover:border-pink-200 hover:text-slate-700'
+                      ? 'border-primary/50 bg-white shadow-sm text-primary'
+                      : 'border-transparent bg-white/70 text-slate-500 hover:border-primary/30 hover:text-primary'
                   }`}
                 >
                   {item.label}
@@ -63,4 +63,5 @@ export default function CategoryCarousel({ align = 'center' }) {
     </div>
   );
 }
+
 

@@ -16,10 +16,10 @@ export default function ProductCard({ product, categorySlug }) {
   return (
     <Link
       href={`/${categorySlug}/${product.slug}`}
-      className="group flex w-full flex-col overflow-hidden rounded-2xl bg-white/90 shadow-sm ring-1 ring-pink-100/70 transition hover:-translate-y-1 hover:shadow-xl sm:rounded-3xl"
+      className="group flex w-full flex-col overflow-hidden rounded-2xl bg-white/90 shadow-sm ring-1 ring-secondary/70 transition hover:-translate-y-1 hover:shadow-xl sm:rounded-3xl"
       prefetch
     >
-      <div className="aspect-[3/4] w-full overflow-hidden bg-pink-50/70 sm:aspect-[3/4]">
+      <div className="aspect-[3/4] w-full overflow-hidden bg-secondary/70 sm:aspect-[3/4]">
         {product.image ? (
           <img
             src={product.image}
@@ -27,7 +27,7 @@ export default function ProductCard({ product, categorySlug }) {
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-pink-200">
+          <div className="flex h-full w-full items-center justify-center text-secondary">
             <svg className="h-10 w-10" viewBox="0 0 24 24" fill="none" stroke="currentColor">
               <path
                 strokeLinecap="round"
@@ -47,7 +47,7 @@ export default function ProductCard({ product, categorySlug }) {
       </div>
       <div className="flex flex-1 flex-col gap-3 p-3 sm:p-5">
         <div>
-          <p className="text-[0.65rem] font-medium uppercase tracking-[0.25em] text-pink-400 sm:text-xs">
+          <p className="text-[0.65rem] font-medium uppercase tracking-[0.25em] text-primary sm:text-xs">
             {categoryLabel}
           </p>
           <h3 className="mt-2 text-sm font-medium text-slate-800 sm:text-base">
@@ -55,7 +55,7 @@ export default function ProductCard({ product, categorySlug }) {
           </h3>
         </div>
         <div className="mt-auto">
-          <p className="text-base font-semibold text-pink-500 sm:text-lg">
+          <p className="text-base font-semibold text-primary sm:text-lg">
             ${product.price.toFixed(2)}
           </p>
         </div>

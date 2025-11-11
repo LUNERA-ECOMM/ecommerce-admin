@@ -76,14 +76,14 @@ export default function HomeClient({ initialCategories = [], initialProducts = [
   }, [categories, products]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white via-pink-50/40 to-white">
+    <div className="min-h-screen bg-gradient-to-b from-white via-secondary/40 to-white">
       <AdminRedirect />
           {/* Header */}
-          <header className="sticky top-0 z-50 border-b border-pink-100/70 bg-white/90 backdrop-blur">
+          <header className="sticky top-0 z-50 border-b border-secondary/70 bg-white/90 backdrop-blur">
             <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3 sm:justify-between sm:gap-4 sm:px-6 lg:px-8">
               {/* Mobile: Company name, Desktop: Full branding */}
               <div className="flex flex-col sm:flex-col">
-                <h1 className="whitespace-nowrap text-xl font-light text-slate-800 tracking-wide sm:text-2xl">
+                <h1 className="whitespace-nowrap text-xl font-light text-primary tracking-wide sm:text-2xl">
                   Lingerie Boutique
                 </h1>
                 <p className="hidden text-sm text-slate-500 sm:block">
@@ -96,7 +96,7 @@ export default function HomeClient({ initialCategories = [], initialProducts = [
                 <AuthButton />
                 <Link
                   href="/cart"
-                  className="relative ml-2 flex items-center justify-center rounded-full border border-pink-200/70 bg-white/80 p-2.5 text-pink-600 shadow-sm transition-colors hover:bg-pink-100 hover:text-pink-700"
+                  className="relative ml-2 flex items-center justify-center rounded-full border border-primary/30 bg-white/80 p-2.5 text-primary shadow-sm transition-colors hover:bg-secondary hover:text-primary"
                   aria-label="Shopping cart"
                 >
                   <svg
@@ -113,7 +113,7 @@ export default function HomeClient({ initialCategories = [], initialProducts = [
                     />
                   </svg>
                   {hasMounted && getCartItemCount() > 0 && (
-                    <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-pink-500 text-xs font-semibold text-white">
+                    <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white">
                       {getCartItemCount() > 9 ? '9+' : getCartItemCount()}
                     </span>
                   )}
@@ -130,10 +130,10 @@ export default function HomeClient({ initialCategories = [], initialProducts = [
       {/* Hero Section */}
       <section className="px-4 py-10 sm:px-6 sm:py-16">
         <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 text-center">
-          <span className="rounded-full bg-white/70 px-4 py-1 text-xs font-medium uppercase tracking-[0.3em] text-pink-400">
+          <span className="rounded-full bg-white/70 px-4 py-1 text-xs font-medium uppercase tracking-[0.3em] text-primary">
             Explore the Edit
           </span>
-          <h2 className="text-3xl font-light text-slate-800 sm:text-5xl">
+          <h2 className="text-3xl font-light text-primary sm:text-5xl">
             Curated collections for every mood and moment.
           </h2>
           <p className="text-base text-slate-600 sm:text-lg">
@@ -146,7 +146,7 @@ export default function HomeClient({ initialCategories = [], initialProducts = [
       {/* Category Cards */}
       <main id="collection" className="mx-auto max-w-7xl px-3 pb-16 sm:px-6 lg:px-8">
         <div className="mb-8 flex flex-col gap-2 text-center sm:mb-12 sm:text-left">
-          <h3 className="text-xl font-medium text-slate-800 sm:text-2xl">Shop by category</h3>
+          <h3 className="text-xl font-medium text-primary sm:text-2xl">Shop by category</h3>
           <p className="text-sm text-slate-600 sm:text-base">
             Choose a category to explore this week's top four bestsellers, refreshed daily.
           </p>
@@ -154,7 +154,7 @@ export default function HomeClient({ initialCategories = [], initialProducts = [
         {loading ? (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-64 animate-pulse rounded-3xl bg-pink-50/50" />
+              <div key={i} className="h-64 animate-pulse rounded-3xl bg-secondary/50" />
             ))}
           </div>
         ) : (
@@ -167,7 +167,7 @@ export default function HomeClient({ initialCategories = [], initialProducts = [
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-pink-100/70 bg-white">
+      <footer className="border-t border-secondary/70 bg-white">
         <div className="mx-auto max-w-7xl px-4 py-10 text-center text-sm text-slate-500 sm:px-6 lg:px-8">
           © 2024 Lingerie Boutique. All rights reserved.
         </div>

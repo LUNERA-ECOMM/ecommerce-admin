@@ -173,13 +173,13 @@ export default function ProductDetailPage({ category, product, variants }) {
   };
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-b from-white via-pink-50/40 to-white">
-      <header className="sticky top-0 z-40 border-b border-pink-100/70 bg-white/90 backdrop-blur">
+    <div className="relative min-h-screen bg-gradient-to-b from-white via-secondary/40 to-white">
+      <header className="sticky top-0 z-40 border-b border-secondary/70 bg-white/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
             <Link
               href={`/${category.slug}`}
-              className="flex items-center text-pink-500 transition hover:text-pink-600"
+              className="flex items-center text-primary transition hover:text-primary"
               aria-label={`Back to ${category.label}`}
             >
               <svg
@@ -193,19 +193,19 @@ export default function ProductDetailPage({ category, product, variants }) {
               </svg>
             </Link>
             <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4">
-              <h1 className="whitespace-nowrap text-xl font-light text-slate-800 tracking-wide sm:hidden">
+              <h1 className="whitespace-nowrap text-xl font-light text-primary tracking-wide sm:hidden">
                 Lingerie Boutique
               </h1>
-              <nav className="hidden items-center gap-2 text-xs uppercase tracking-[0.2em] text-pink-400 sm:flex">
-                <Link href="/" className="transition hover:text-pink-500">
+              <nav className="hidden items-center gap-2 text-xs uppercase tracking-[0.2em] text-primary sm:flex">
+                <Link href="/" className="transition hover:text-primary">
                   Home
                 </Link>
                 <span>•</span>
-                <Link href={`/${category.slug}`} className="transition hover:text-pink-500">
+                <Link href={`/${category.slug}`} className="transition hover:text-primary">
                   {category.label}
                 </Link>
                 <span>•</span>
-                <span className="text-pink-500">{product.name}</span>
+                <span className="text-primary">{product.name}</span>
               </nav>
             </div>
           </div>
@@ -213,7 +213,7 @@ export default function ProductDetailPage({ category, product, variants }) {
             <AuthButton />
             <Link
               href="/cart"
-              className="relative ml-2 flex items-center justify-center rounded-full border border-pink-200/70 bg-white/80 p-2 text-pink-600 shadow-sm transition-colors hover:bg-pink-100 hover:text-pink-700"
+              className="relative ml-2 flex items-center justify-center rounded-full border border-primary/30 bg-white/80 p-2 text-primary shadow-sm transition-colors hover:bg-secondary hover:text-primary"
               aria-label="Shopping cart"
             >
               <svg
@@ -230,7 +230,7 @@ export default function ProductDetailPage({ category, product, variants }) {
                 />
               </svg>
               {hasMounted && getCartItemCount() > 0 && (
-                <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-pink-500 text-xs font-semibold text-white">
+                <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white">
                   {getCartItemCount() > 9 ? '9+' : getCartItemCount()}
                 </span>
               )}
@@ -242,7 +242,7 @@ export default function ProductDetailPage({ category, product, variants }) {
           <main className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 py-12 sm:px-6 lg:flex-row lg:items-start lg:gap-16 lg:px-8">
         {/* Gallery */}
         <section className="flex w-full flex-col gap-4 lg:w-1/2">
-          <div className="overflow-hidden rounded-3xl bg-pink-50/70 shadow-sm ring-1 ring-pink-100/50">
+          <div className="overflow-hidden rounded-3xl bg-secondary/70 shadow-sm ring-1 ring-secondary/50">
             {activeImage ? (
               <img
                 src={activeImage}
@@ -250,7 +250,7 @@ export default function ProductDetailPage({ category, product, variants }) {
                 className="h-full w-full object-cover"
               />
             ) : (
-              <div className="flex aspect-[3/4] items-center justify-center text-pink-200">
+              <div className="flex aspect-[3/4] items-center justify-center text-secondary">
                 <svg className="h-16 w-16" viewBox="0 0 48 48" fill="none" stroke="currentColor">
                   <path
                     strokeLinecap="round"
@@ -272,8 +272,8 @@ export default function ProductDetailPage({ category, product, variants }) {
                   onClick={() => setActiveImage(image)}
                   className={`overflow-hidden rounded-2xl border transition ${
                     activeImage === image
-                      ? 'border-pink-400 shadow-md'
-                      : 'border-pink-100/70 hover:border-pink-200'
+                      ? 'border-primary shadow-md'
+                      : 'border-secondary/70 hover:border-primary/30'
                   }`}
                 >
                   <img src={image} alt="" className="aspect-square w-full object-cover" />
@@ -286,21 +286,21 @@ export default function ProductDetailPage({ category, product, variants }) {
         {/* Product Info */}
         <section className="flex w-full flex-col gap-8 lg:w-1/2">
           <div className="space-y-4">
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-pink-400">
+            <div className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-primary">
               {category.label}
             </div>
-            <h1 className="text-3xl font-light text-slate-900 sm:text-4xl md:text-5xl">
+            <h1 className="text-3xl font-light text-primary sm:text-4xl md:text-5xl">
               {product.name}
             </h1>
             <p className="text-lg text-slate-600 sm:text-xl">{product.description}</p>
           </div>
 
               <div className="flex items-baseline gap-4">
-                <p className="text-3xl font-semibold text-pink-500 sm:text-4xl">
+                <p className="text-3xl font-semibold text-primary sm:text-4xl">
                   {formatPrice(displayedPrice)}
                 </p>
                 {selectedVariant?.priceOverride && (
-                  <span className="rounded-full bg-pink-100/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-pink-500">
+                  <span className="rounded-full bg-secondary/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-primary">
                     Variant price
                   </span>
                 )}
@@ -312,7 +312,7 @@ export default function ProductDetailPage({ category, product, variants }) {
               {/* Color Selector */}
               {availableColors.length > 1 && (
                 <div className="space-y-3">
-                  <h2 className="text-sm font-semibold uppercase tracking-[0.3em] text-pink-400">
+                  <h2 className="text-sm font-semibold uppercase tracking-[0.3em] text-primary">
                     Color: {selectedColor}
                   </h2>
                   <div className="flex flex-wrap gap-3">
@@ -338,15 +338,15 @@ export default function ProductDetailPage({ category, product, variants }) {
                           }}
                           className={`relative flex items-center gap-2 rounded-xl border-2 px-4 py-2 transition ${
                             isSelected
-                              ? 'border-pink-400 bg-white shadow-md'
-                              : 'border-pink-100/70 bg-white/60 hover:border-pink-200'
+                              ? 'border-primary bg-white shadow-md'
+                              : 'border-secondary/70 bg-white/60 hover:border-primary/30'
                           }`}
                         >
                           {firstVariantImage && (
                             <img
                               src={firstVariantImage}
                               alt={color}
-                              className="h-8 w-8 rounded-full object-cover ring-1 ring-pink-100/50"
+                              className="h-8 w-8 rounded-full object-cover ring-1 ring-secondary/50"
                             />
                           )}
                           <span className="text-sm font-semibold text-slate-800">{color}</span>
@@ -360,7 +360,7 @@ export default function ProductDetailPage({ category, product, variants }) {
               {/* Size Selector (only show if there are multiple sizes for selected color) */}
               {availableSizes.length > 1 && (
                 <div className="space-y-3">
-                  <h2 className="text-sm font-semibold uppercase tracking-[0.3em] text-pink-400">
+                  <h2 className="text-sm font-semibold uppercase tracking-[0.3em] text-primary">
                     Size
                   </h2>
                   <div className="grid grid-cols-4 gap-3">
@@ -378,10 +378,10 @@ export default function ProductDetailPage({ category, product, variants }) {
                           disabled={isOutOfStock}
                           className={`flex flex-col items-center justify-center rounded-xl border-2 px-3 py-2 text-sm font-semibold transition ${
                             isSelected
-                              ? 'border-pink-400 bg-white shadow-md text-slate-800'
+                              ? 'border-primary bg-white shadow-md text-slate-800'
                               : isOutOfStock
-                              ? 'border-pink-100/30 bg-white/30 text-slate-400 cursor-not-allowed'
-                              : 'border-pink-100/70 bg-white/60 text-slate-700 hover:border-pink-200'
+                              ? 'border-secondary/30 bg-white/30 text-slate-400 cursor-not-allowed'
+                              : 'border-secondary/70 bg-white/60 text-slate-700 hover:border-primary/30'
                           }`}
                         >
                           <span>{size}</span>
@@ -394,7 +394,7 @@ export default function ProductDetailPage({ category, product, variants }) {
 
               {/* Show selected variant details */}
               {selectedVariant && (
-                <div className="rounded-xl border border-pink-100/70 bg-white/60 px-4 py-3">
+                <div className="rounded-xl border border-secondary/70 bg-white/60 px-4 py-3">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-semibold text-slate-800">
                       {selectedVariant.size && selectedVariant.color
@@ -402,7 +402,7 @@ export default function ProductDetailPage({ category, product, variants }) {
                         : selectedVariant.color || selectedVariant.size || 'One size'}
                     </span>
                     {selectedVariant.priceOverride && (
-                      <span className="text-xs font-medium text-pink-500">
+                      <span className="text-xs font-medium text-primary">
                         {formatPrice(selectedVariant.priceOverride)}
                       </span>
                     )}
@@ -421,10 +421,10 @@ export default function ProductDetailPage({ category, product, variants }) {
                     justAdded
                       ? 'bg-green-500 hover:bg-green-400 focus-visible:outline-green-500'
                       : addingToCart
-                      ? 'bg-pink-400 cursor-wait'
+                      ? 'bg-primary/80 cursor-wait'
                       : currentCartItem
-                      ? 'bg-pink-600 hover:bg-pink-500 focus-visible:outline-pink-500'
-                      : 'bg-pink-500 hover:bg-pink-400 focus-visible:outline-pink-500'
+                      ? 'bg-primary hover:bg-primary/90 focus-visible:outline-primary'
+                      : 'bg-primary hover:bg-primary/90 focus-visible:outline-primary'
                   }`}
                 >
                   {addingToCart ? (
@@ -505,7 +505,7 @@ export default function ProductDetailPage({ category, product, variants }) {
                   )}
                 </button>
                 {currentCartItem && !justAdded && (
-                  <p className="text-xs text-pink-600 font-medium">
+                  <p className="text-xs text-primary font-medium">
                     This item is already in your cart. Click to add another.
                   </p>
                 )}
@@ -515,8 +515,8 @@ export default function ProductDetailPage({ category, product, variants }) {
               </div>
 
               {product.careInstructions && (
-            <div className="space-y-2 rounded-3xl bg-white/70 p-6 ring-1 ring-pink-100/70">
-              <h3 className="text-sm font-semibold uppercase tracking-[0.3em] text-pink-400">
+            <div className="space-y-2 rounded-3xl bg-white/70 p-6 ring-1 ring-secondary/70">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.3em] text-primary">
                 Care instructions
               </h3>
               <p className="text-sm text-slate-600 whitespace-pre-line">
@@ -529,4 +529,5 @@ export default function ProductDetailPage({ category, product, variants }) {
     </div>
   );
 }
+
 

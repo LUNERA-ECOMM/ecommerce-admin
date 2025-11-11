@@ -14,7 +14,7 @@ export default function CategoryCard({ category, products }) {
   return (
     <Link
       href={`/${category.slug}`}
-      className="group flex flex-col overflow-hidden rounded-3xl border border-pink-100/70 bg-white/90 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
+      className="group flex flex-col overflow-hidden rounded-3xl border border-secondary/70 bg-white/90 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
       prefetch
       aria-label={`Explore ${category.label} collection`}
     >
@@ -23,7 +23,7 @@ export default function CategoryCard({ category, products }) {
           itemsToShow.map((item, index) => (
             <div
               key={`${category.id}-${item.id}-${index}`}
-              className="overflow-hidden rounded-2xl bg-pink-50/80 sm:rounded-3xl aspect-square"
+              className="overflow-hidden rounded-2xl bg-secondary/80 sm:rounded-3xl aspect-square"
             >
               <img
                 src={item.image}
@@ -33,9 +33,9 @@ export default function CategoryCard({ category, products }) {
             </div>
           ))
         ) : (
-          <div className="col-span-full aspect-square flex items-center justify-center rounded-2xl bg-pink-50/80 sm:rounded-3xl">
+          <div className="col-span-full aspect-square flex items-center justify-center rounded-2xl bg-secondary/80 sm:rounded-3xl">
             <svg
-              className="h-12 w-12 text-pink-200 sm:h-16 sm:w-16"
+              className="h-12 w-12 text-secondary sm:h-16 sm:w-16"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -52,13 +52,13 @@ export default function CategoryCard({ category, products }) {
       </div>
       <div className="flex flex-col gap-2 px-4 pb-5 sm:px-5">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-medium text-slate-800 sm:text-xl">{category.label}</h3>
-          <span className="text-xs font-medium uppercase tracking-[0.3em] text-pink-400">
+          <h3 className="text-lg font-medium text-primary sm:text-xl">{category.label}</h3>
+          <span className="text-xs font-medium uppercase tracking-[0.3em] text-primary">
             Shop
           </span>
         </div>
         <p className="text-sm text-slate-500 sm:text-base">{category.description}</p>
-        <span className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-pink-500">
+        <span className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-primary">
           View collection
           <svg
             className="h-3 w-3 translate-y-[1px] transition group-hover:translate-x-1"
