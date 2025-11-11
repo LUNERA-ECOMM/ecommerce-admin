@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { trackProductView } from '@/lib/analytics';
 
 const categoryLabels = {
   lingerie: 'Lingerie',
@@ -23,7 +22,6 @@ export default function ProductCard({ product, categorySlug }) {
   return (
     <Link
       href={`/${categorySlug}/${product.slug}`}
-      onClick={() => trackProductView(product.id)}
       className="group flex w-full flex-col overflow-hidden rounded-2xl bg-white/90 shadow-sm ring-1 ring-pink-100/70 transition hover:-translate-y-1 hover:shadow-xl sm:rounded-3xl"
       prefetch
     >

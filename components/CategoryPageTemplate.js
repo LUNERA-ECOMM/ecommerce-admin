@@ -1,11 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
 import AuthButton from '@/components/AuthButton';
 import CategoryCarousel from '@/components/CategoryCarousel';
 import ProductCard from '@/components/ProductCard';
 import { useCategories, useProductsByCategory } from '@/lib/firestore-data';
-import { trackCategoryView } from '@/lib/analytics';
 import dynamic from 'next/dynamic';
 
 const AdminRedirect = dynamic(() => import('@/components/AdminRedirect'), {
@@ -23,12 +21,7 @@ export default function CategoryPageTemplate({ categoryId, category: categoryPro
   const products = categoryId ? fetchedProducts : productsProp;
   const loading = categoryId ? productsLoading : false;
 
-  // Track category view when page loads
-  useEffect(() => {
-    if (category?.id) {
-      trackCategoryView(category.id);
-    }
-  }, [category?.id]);
+  // (Analytics removed)
 
   // Show loading state if category is not yet loaded
   if (!category && categoryId) {

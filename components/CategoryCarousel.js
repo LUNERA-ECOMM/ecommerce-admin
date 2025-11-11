@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useMemo } from 'react';
 import { useCategories, useAllProducts } from '@/lib/firestore-data';
-import { trackCategoryView } from '@/lib/analytics';
 
 export default function CategoryCarousel({ align = 'center' }) {
   const pathname = usePathname();
@@ -13,13 +12,9 @@ export default function CategoryCarousel({ align = 'center' }) {
 
   const navItems = useMemo(() => {
     // Filter categories that have products
-    const categoriesWithProducts = categories.filter((category) => {
-      const hasProducts = products.some((product) => product.categoryId === category.id);
-      if (!hasProducts) {
-        console.log(`[Category Filter] Hiding category "${category.name || category.label}" (slug: ${category.slug}) from carousel - no products assigned`);
-      }
-      return hasProducts;
-    });
+    const categoriesWithProducts = categories.filter((category) =>
+      products.some((product) => product.categoryId === category.id)
+    );
 
     return [
       { href: '/', value: 'all', label: 'All Categories' },
@@ -45,18 +40,10 @@ export default function CategoryCarousel({ align = 'center' }) {
       >
         <ul className={`flex w-full min-w-max flex-nowrap items-center gap-2 ${containerAlignment}`}>
           {navItems.map((item) => {
-            const category = item.value !== 'all' ? categories.find((cat) => cat.slug === item.value) : null;
-            const handleClick = () => {
-              if (category) {
-                trackCategoryView(category.id);
-              }
-            };
-
             return (
               <li key={item.value} className="flex-none">
                 <Link
                   href={item.href}
-                  onClick={handleClick}
                   className={`inline-flex items-center rounded-full border px-4 py-2 text-sm font-medium transition ${
                     isActive(item)
                       ? 'border-pink-300 bg-white shadow-sm text-slate-800'

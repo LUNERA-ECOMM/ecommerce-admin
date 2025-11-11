@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { trackProductView } from '@/lib/analytics';
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -40,10 +39,6 @@ export default function ProductDetailPage({ category, product, variants }) {
       selectedVariant?.image || galleryImages[0] || product.images?.[0] || null;
     setActiveImage(primaryImage);
   }, [selectedVariant?.image, galleryImages, product.images]);
-
-  useEffect(() => {
-    trackProductView(product.id).catch(() => {});
-  }, [product.id]);
 
   const handleAddToBag = () => {
     // Placeholder add-to-cart action

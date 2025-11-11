@@ -1,13 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { trackCategoryView } from '@/lib/analytics';
 
 export default function CategoryCard({ category, products }) {
-  const handleClick = (e) => {
-    // Don't prevent navigation - track in background
-    trackCategoryView(category.id).catch(console.error);
-  };
   // Use the products provided (which should be the preview products from the database)
   // If we have products, use them (up to 4)
   // If we don't have enough products, fill with placeholders
@@ -24,7 +19,6 @@ export default function CategoryCard({ category, products }) {
   return (
     <Link
       href={`/${category.slug}`}
-      onClick={handleClick}
       className="group flex flex-col overflow-hidden rounded-3xl border border-pink-100/70 bg-white/90 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
       prefetch
       aria-label={`Explore ${category.label} collection`}
