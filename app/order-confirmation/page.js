@@ -117,10 +117,11 @@ export default function OrderConfirmationPage() {
             ← Back to shop
           </Link>
           <h1 className="text-xl font-light text-slate-800">Order Confirmation</h1>
-          <div className="w-20" /> {/* Spacer */}
-        </header>
+          <div className="w-20" />
+        </div>
+      </header>
 
-        <main className="mx-auto max-w-2xl px-4 py-12 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-2xl px-4 py-12 sm:px-6 lg:px-8">
           <div className="space-y-8">
             {/* Success Message */}
             <div className="rounded-2xl border border-green-200 bg-green-50/50 p-6 text-center">
