@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed:dummy": "node scripts/seed-dummy-data.js",
+    "seed:clear": "node scripts/clear-dummy-data.js"
   },
   "dependencies": {
     "firebase": "^12.5.0",

@@ -13,12 +13,6 @@ const categoryLabels = {
 export default function ProductCard({ product, categorySlug }) {
   const categoryLabel = categoryLabels[product.category] ?? 'Collection';
 
-  const handleAddToCart = (event) => {
-    event.preventDefault();
-    // TODO: Implement cart functionality
-    console.log('Added to cart:', product.name);
-  };
-
   return (
     <Link
       href={`/${categorySlug}/${product.slug}`}
@@ -60,21 +54,10 @@ export default function ProductCard({ product, categorySlug }) {
             {product.name}
           </h3>
         </div>
-        <div className="mt-auto flex items-center justify-between">
+        <div className="mt-auto">
           <p className="text-base font-semibold text-pink-500 sm:text-lg">
             ${product.price.toFixed(2)}
           </p>
-          <button
-            type="button"
-            onClick={handleAddToCart}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-pink-200/70 bg-white/90 text-pink-500 transition hover:bg-pink-100 hover:text-pink-600"
-            aria-label={`Add ${product.name} to cart`}
-          >
-            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M9 6a3 3 0 1 1 6 0h3.75a.75.75 0 0 1 .735.89l-1.2 6.5a2.75 2.75 0 0 1-2.71 2.26H8.425a2.75 2.75 0 0 1-2.71-2.26l-1.2-6.5A.75.75 0 0 1 5.25 6H9Zm1.5 0a1.5 1.5 0 0 1 3 0h-3Z" />
-              <path d="M9.75 18a.75.75 0 0 1 .75.75v.5a1 1 0 0 0 2 0v-.5a.75.75 0 1 1 1.5 0v.5a2.5 2.5 0 0 1-5 0v-.5a.75.75 0 0 1 .75-.75Z" />
-            </svg>
-          </button>
         </div>
       </div>
     </Link>

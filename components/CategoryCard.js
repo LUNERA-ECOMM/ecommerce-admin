@@ -4,17 +4,12 @@ import Link from 'next/link';
 
 export default function CategoryCard({ category, products }) {
   // Use the products provided (which should be the preview products from the database)
-  // If we have products, use them (up to 4)
-  // If we don't have enough products, fill with placeholders
-  // If no products at all, show placeholder icon
-  const previewItems = products.length > 0
-    ? products.slice(0, 4)
-    : [];
+  // Only show actual products, up to 4
+  const previewItems = products.slice(0, 4).filter((item) => item && item.image);
   
-  // Fill remaining slots if we have less than 4 products
-  const itemsToShow = previewItems.length < 4
-    ? [...previewItems, ...Array(4 - previewItems.length).fill(null)]
-    : previewItems;
+  // Show either 4 photos (2x2 grid) or just 1 photo (single)
+  const showFourPhotos = previewItems.length === 4;
+  const itemsToShow = showFourPhotos ? previewItems : previewItems.slice(0, 1);
 
   return (
     <Link
@@ -23,35 +18,37 @@ export default function CategoryCard({ category, products }) {
       prefetch
       aria-label={`Explore ${category.label} collection`}
     >
-      <div className="grid grid-cols-2 grid-rows-2 gap-1 p-3 sm:gap-2 sm:p-4">
-        {itemsToShow.map((item, index) => (
-          <div
-            key={`${category.id}-${item?.id ?? index}-${index}`}
-            className="overflow-hidden rounded-2xl bg-pink-50/80 sm:rounded-3xl aspect-square flex items-center justify-center"
-          >
-            {item && item.image ? (
+      <div className={`grid ${showFourPhotos ? 'grid-cols-2 grid-rows-2' : 'grid-cols-1'} gap-1 p-3 sm:gap-2 sm:p-4`}>
+        {itemsToShow.length > 0 ? (
+          itemsToShow.map((item, index) => (
+            <div
+              key={`${category.id}-${item.id}-${index}`}
+              className="overflow-hidden rounded-2xl bg-pink-50/80 sm:rounded-3xl aspect-square"
+            >
               <img
                 src={item.image}
                 alt={`${category.label} highlight ${index + 1}`}
                 className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
               />
-            ) : (
-              <svg
-                className="h-12 w-12 text-pink-200 sm:h-16 sm:w-16"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.5}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
-                />
-              </svg>
-            )}
+            </div>
+          ))
+        ) : (
+          <div className="col-span-full aspect-square flex items-center justify-center rounded-2xl bg-pink-50/80 sm:rounded-3xl">
+            <svg
+              className="h-12 w-12 text-pink-200 sm:h-16 sm:w-16"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
+              />
+            </svg>
           </div>
-        ))}
+        )}
       </div>
       <div className="flex flex-col gap-2 px-4 pb-5 sm:px-5">
         <div className="flex items-center justify-between">

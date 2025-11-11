@@ -61,7 +61,7 @@ Top-level product metadata. Per-variant data lives in the `variants` subcollecti
 | `sku`             | string  | Optional identifier                                            |
 | `stock`           | number  | Inventory count for this variant                               |
 | `priceOverride`   | number  | Optional override; falls back to `basePrice` if null          |
-| `image`           | string  | Optional variant-specific image URL (e.g., for color variants) |
+| `images`          | array   | Optional variant-specific image URLs (e.g., for color variants). Array of strings, typically 2-3 images per variant. |
 | `metrics`         | map     | `{ totalViews, totalAddedToCart, totalPurchases }`             |
 | `createdAt`       | timestamp |                                                              |
 | `updatedAt`       | timestamp |                                                              |

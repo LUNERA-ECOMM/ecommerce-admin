@@ -46,9 +46,9 @@ export default function AuthButton() {
     }
   };
 
-  const signOutButtonClasses = 'flex items-center justify-center gap-2 rounded-full border border-pink-200/70 bg-white/80 px-5 py-2.5 text-sm font-medium text-pink-600 shadow-sm transition-colors hover:bg-pink-100 hover:text-pink-700';
+  const signOutButtonClasses = 'flex items-center justify-center gap-2 rounded-full border border-pink-200/70 bg-white/80 px-5 py-2.5 text-sm font-medium text-pink-600 shadow-sm transition-colors hover:bg-pink-100 hover:text-pink-700 mr-5 md:mr-10 lg:mr-20';
 
-  const googleButtonClasses = 'flex items-center justify-center gap-2 rounded-full border border-zinc-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-zinc-50';
+  const googleButtonClasses = 'flex items-center justify-center gap-2 rounded-full border border-zinc-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-zinc-50 mr-5 md:mr-10 lg:mr-20';
 
   if (loading) {
     return <button className={googleButtonClasses}>Loading...</button>;

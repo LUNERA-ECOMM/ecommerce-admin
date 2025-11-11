@@ -44,8 +44,24 @@ service cloud.firestore {
     }
 
     match /carts/{cartId} {
-      allow read, write: if request.auth != null
-                         && request.auth.uid == resource.data.userId;
+      // Allow users to read/write their own cart
+      // Cart document ID is the user's UID, so we can check cartId == auth.uid
+      // For reads: allow if cartId matches user's uid (works even if doc doesn't exist yet)
+      allow read: if request.auth != null
+                  && request.auth.uid == cartId;
+      // For creates: cartId must match auth uid, and userId in data must match
+      allow create: if request.auth != null
+                     && request.auth.uid == cartId
+                     && request.auth.uid == request.resource.data.userId;
+      // For updates: cartId must match auth uid, document must exist, and userId must remain the same
+      allow update: if request.auth != null
+                     && request.auth.uid == cartId
+                     && (!resource.exists || request.auth.uid == resource.data.userId)
+                     && request.auth.uid == request.resource.data.userId;
+      // For deletes: cartId must match auth uid and document must exist
+      allow delete: if request.auth != null
+                     && request.auth.uid == cartId
+                     && (!resource.exists || request.auth.uid == resource.data.userId);
     }
 
     match /userEvents/{eventId} {
@@ -60,4 +76,3 @@ service cloud.firestore {
     }
   }
 }
-

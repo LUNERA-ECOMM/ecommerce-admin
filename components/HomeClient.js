@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useMemo } from 'react';
+import Link from 'next/link';
 import AuthButton from '@/components/AuthButton';
 import CategoryCard from '@/components/CategoryCard';
 import CategoryCarousel from '@/components/CategoryCarousel';
 import { useCategories, useAllProducts } from '@/lib/firestore-data';
+import { useCart } from '@/lib/cart';
 import dynamic from 'next/dynamic';
 
 const AdminRedirect = dynamic(() => import('@/components/AdminRedirect'), {
@@ -15,6 +17,7 @@ export default function HomeClient({ initialCategories = [], initialProducts = [
   // Use real-time updates from Firebase, but start with server-rendered data
   const { categories: realtimeCategories, loading: categoriesLoading } = useCategories();
   const { products: realtimeProducts, loading: productsLoading } = useAllProducts();
+  const { getCartItemCount } = useCart();
 
   // Use real-time data if available (after hydration), otherwise use initial server data
   const categories = realtimeCategories.length > 0 ? realtimeCategories : initialCategories;
@@ -70,22 +73,48 @@ export default function HomeClient({ initialCategories = [], initialProducts = [
   return (
     <div className="min-h-screen bg-gradient-to-b from-white via-pink-50/40 to-white">
       <AdminRedirect />
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-pink-100/70 bg-white/90 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3 sm:justify-between sm:gap-4 sm:px-6 lg:px-8">
-          <div className="hidden sm:flex sm:flex-col">
-            <h1 className="text-2xl font-light text-slate-800 tracking-wide">
-              Lingerie Boutique
-            </h1>
-            <p className="text-sm text-slate-500">
-              Effortless softness for every day and night in.
-            </p>
-          </div>
-          <div className="flex w-full justify-end sm:w-auto">
-            <AuthButton />
-          </div>
-        </div>
-      </header>
+          {/* Header */}
+          <header className="sticky top-0 z-50 border-b border-pink-100/70 bg-white/90 backdrop-blur">
+            <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3 sm:justify-between sm:gap-4 sm:px-6 lg:px-8">
+              <div className="hidden sm:flex sm:flex-col">
+                <h1 className="text-2xl font-light text-slate-800 tracking-wide">
+                  Lingerie Boutique
+                </h1>
+                <p className="text-sm text-slate-500">
+                  Effortless softness for every day and night in.
+                </p>
+              </div>
+              {/* Spacer for mobile to push buttons to right */}
+              <div className="flex-1 sm:hidden" />
+              <div className="flex w-full items-center justify-end gap-3 sm:w-auto sm:gap-4">
+                <AuthButton />
+                <Link
+                  href="/cart"
+                  className="relative ml-2 flex items-center justify-center rounded-full border border-pink-200/70 bg-white/80 p-2.5 text-pink-600 shadow-sm transition-colors hover:bg-pink-100 hover:text-pink-700"
+                  aria-label="Shopping cart"
+                >
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth="2"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
+                    />
+                  </svg>
+                  {getCartItemCount() > 0 && (
+                    <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-pink-500 text-xs font-semibold text-white">
+                      {getCartItemCount() > 9 ? '9+' : getCartItemCount()}
+                    </span>
+                  )}
+                </Link>
+              </div>
+            </div>
+          </header>
 
       {/* Category carousel */}
       <section className="px-4 pt-4 sm:px-6 lg:px-8">
