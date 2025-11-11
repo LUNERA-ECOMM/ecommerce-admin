@@ -13,6 +13,10 @@ export default function UnderConstructionBanner() {
   useEffect(() => {
     // Check if banner was dismissed
     if (typeof window !== 'undefined') {
+      // Temporarily reset the banner to show it again
+      // Remove this line after confirming the banner appears
+      localStorage.removeItem(BANNER_STORAGE_KEY);
+      
       const dismissed = localStorage.getItem(BANNER_STORAGE_KEY);
       if (dismissed) {
         setIsDismissed(true);
