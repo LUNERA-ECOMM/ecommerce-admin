@@ -1,119 +1,110 @@
 # E-commerce Admin Dashboard
 
-A Next.js e-commerce application featuring a minimalist lingerie boutique with admin dashboard functionality.
+A Next.js multi-storefront e-commerce platform for managing dropshipping products sourced from Shopify. Shopify products are sourced via DSers from Alibaba and Temu. The platform also supports creating custom products.
 
 ## Features
 
-- **E-commerce Homepage**: Beautiful, minimalist design showcasing 15 lingerie products
-- **Google Authentication**: Sign in with Google to access the admin dashboard
-- **Admin Dashboard**: Analytics and product overview (accessible only to admin accounts: `arbengrepi@gmail.com`, `andreas.konga@gmail.com`, `muliqiblerine@gmail.com`)
-- **Protected Routes**: Admin routes are protected and redirect unauthorized users
+- **Multiple Storefronts**: Create and manage multiple e-commerce storefronts
+- **Shopify Integration**: Import and process products from Shopify (sourced via DSers from Alibaba/Temu)
+- **Custom Products**: Create and manage your own products
+- **Admin Dashboard**: Analytics, product management, and storefront configuration
+- **Protected Routes**: Admin routes are protected and accessible only to authorized admin accounts
 
 ## Collaborator Quick Start
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/<your-org>/ecommerce-admin.git
+   git clone https://github.com/LUNERA-ECOMM/ecommerce-admin.git
    cd ecommerce-admin
    ```
-2. Follow the setup steps below to configure your environment.
 
-## Getting Started
-
-### Prerequisites
-
-- Node.js 18+ installed
-- Firebase project set up with Authentication enabled
-
-### Setup
-
-1. **Install dependencies:**
+2. **Install dependencies:**
    ```bash
    npm install
    ```
 
-2. **Configure Firebase:**
+3. **Configure Firebase:**
    - Create a `.env.local` file in the root directory
-   - Copy the values from `.env.local.example` and fill in your Firebase configuration:
-     ```env
-     NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key_here
-     NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project_id.firebaseapp.com
-     NEXT_PUBLIC_FIREBASE_PROJECT_ID=ecommerce-2f366
-     NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project_id.appspot.com
-     NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id_here
-     NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id_here
-     ```
-
-3. **Enable Google Authentication in Firebase (optional for non-admin tasks):**
-   - Go to Firebase Console → Authentication → Sign-in method
-   - Enable Google as a sign-in provider
+   - Add your Firebase configuration variables (see `.env.local.example`)
 
 4. **Run the development server:**
    ```bash
    npm run dev
    ```
 
-5. **Open [http://localhost:3000](http://localhost:3000)** in your browser
+5. **Open [http://localhost:3000](http://localhost:3000)** in your browser (redirects to `/LUNERA`)
 
-## Documentation
+## Development Workflow
 
-- [AI Text Generation Task](docs/ai-text-generation.md)
+**For collaborators (required):**
+
+1. **Pull the latest changes:**
+   ```bash
+   git checkout master
+   git pull origin master
+   ```
+
+2. **Create a new branch for your changes:**
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+   Use descriptive branch names like `feature/ai-text-generation` or `fix/category-bug`
+
+3. **Make your changes and commit:**
+   ```bash
+   git add .
+   git commit -m "Description of your changes"
+   ```
+
+4. **Push your branch to GitHub:**
+   ```bash
+   git push origin feature/your-feature-name
+   ```
+
+5. **Create a Pull Request:**
+   - Go to the repository on GitHub
+   - Click "New Pull Request"
+   - Select your branch and create the PR
+   - Wait for approval before merging
+
+**Note:** The `master` branch is protected. All changes must go through a Pull Request and require approval before merging.
 
 ## Project Structure
 
 ```
 ├── app/
-│   ├── admin/
-│   │   └── overview/     # Admin dashboard (protected route)
-│   ├── page.js           # E-commerce homepage
-│   └── layout.js         # Root layout
+│   ├── LUNERA/              # Main storefront (all routes under /LUNERA)
+│   │   ├── admin/           # Admin dashboard
+│   │   ├── (collections)/   # Category and product pages
+│   │   └── page.js          # Homepage
+│   └── page.js              # Root redirect to /LUNERA
 ├── components/
-│   ├── AuthButton.js     # Google Sign-In button component
-│   └── ProductCard.js   # Product card component
-└── lib/
-    ├── auth.js           # Authentication utilities
-    ├── firebase.js       # Firebase configuration
-    └── products.js       # Mock product data
+│   ├── admin/               # Admin components
+│   └── ...                  # Storefront components
+└── lib/                     # Utilities and Firebase config
 ```
 
-## Authentication Flow
+## Tasks
 
-- **Regular Users**: Can browse the e-commerce site and sign in with Google
-- **Admin Users** (`arbengrepi@gmail.com`, `andreas.konga@gmail.com`, `muliqiblerine@gmail.com`): Automatically redirected to `/admin/overview` after sign-in
-- **Unauthorized Access**: Attempts to access admin routes redirect to the homepage
+- [ ] **AI Text Generation** - [@AndyMcCode](https://github.com/AndyMcCode) - [Task Documentation](docs/ai-text-generation.md)
+
+## Admin Access
+
+Authorized admin accounts:
+- `arbengrepi@gmail.com`
+- `andreas.konga@gmail.com`
+- `muliqiblerine@gmail.com`
 
 ## Technologies Used
 
 - Next.js 16 (App Router)
 - React 19
-- Firebase Authentication
+- Firebase (Authentication, Firestore, Hosting)
 - Tailwind CSS 4
-- Google Fonts (Geist)
 
 ## Deployment
 
-### Firebase Hosting Setup
-
-This project uses Firebase Hosting with Next.js SSR support, which requires Cloud Functions.
-
-**Before deploying, ensure:**
-
-1. **Cloud Functions API is enabled** (⚠️ **Required - one-time setup**):
-   - Go to [Google Cloud Console](https://console.cloud.google.com/apis/library/cloudfunctions.googleapis.com?project=ecommerce-2f366)
-   - Click "Enable" button
-   - Wait 2-3 minutes for activation
-   - **No CLI tools needed** - just use the web console
-
-2. **Required Firebase APIs:**
-   - Cloud Functions API
-   - Cloud Build API (for building functions)
-   - Firebase Hosting API
-
-3. **Service Account Permissions:**
-   - The GitHub Actions service account needs permissions to:
-     - Create/update Cloud Functions
-     - Deploy to Firebase Hosting
-     - Enable APIs (or enable manually)
+Deployment is handled automatically via GitHub Actions when pushing to the `master` branch. See `.github/workflows/` for deployment configuration.
 
 ### Manual Deployment
 
@@ -125,5 +116,4 @@ firebase deploy
 ## Learn More
 
 - [Next.js Documentation](https://nextjs.org/docs)
-- [Firebase Authentication](https://firebase.google.com/docs/auth)
-- [Firebase Hosting with Next.js](https://firebase.google.com/docs/hosting/frameworks/nextjs)
+- [Firebase Documentation](https://firebase.google.com/docs)
