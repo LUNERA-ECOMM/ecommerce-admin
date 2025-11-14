@@ -1,15 +1,15 @@
 # Database Schema Overview
 
-This document captures the initial Firestore data model for the ecommerce platform. It is meant to be a living reference—update it whenever collections change.
+This document captures the Firestore data model for the ecommerce platform. Update it whenever collections change.
 
 ## Contents
 
 - [Collections](#collections)
-  - [categories](#categories)
+  - [shopify](#shopify)
   - [products](#products)
-  - [suppliers](#suppliers)
-  - [carts](#carts)
+  - [categories](#categories)
   - [orders](#orders)
+  - [carts](#carts)
   - [promotions](#promotions)
   - [users](#users)
   - [userEvents](#userevents)
@@ -20,162 +20,134 @@ This document captures the initial Firestore data model for the ecommerce platfo
 
 ## Collections
 
-All application data lives under the root collection `LUNERA`. Each logical collection (categories, products, promotions, etc.) is stored as a subcollection at the path:
+All storefronts share the same root collections. Each document stores a `storefronts` array indicating where it is available. This allows a single product or category to appear in multiple storefronts without duplication.
 
-```
-LUNERA/{collectionName}/items/{documentId}
-```
+### shopify
+Staging area for raw Shopify imports.
 
-For example, categories are stored at `LUNERA/categories/items/{categoryId}` and products at `LUNERA/products/items/{productId}`. Product variants remain subcollections of the product document (`.../items/{productId}/variants/{variantId}`).
+Path: `/shopifyItems/{shopifyDocumentId}`
 
-### categories
-Stores merchandising metadata for each category.
-
-| Field            | Type      | Notes                                         |
-|------------------|-----------|-----------------------------------------------|
-| `name`           | string    | Display name                                  |
-| `slug`           | string    | URL-safe identifier                           |
-| `description`    | string    | Short descriptive copy                        |
-| `imageUrl`       | string    | Hero/cover image                              |
-| `createdAt`      | timestamp | Auto-set on insert                            |
-| `updatedAt`      | timestamp | Auto-set on update                            |
-| `metrics`        | map       | `{ totalViews: number, lastViewedAt: timestamp }` |
+| Field | Type | Notes |
+|-------|------|-------|
+| `shopifyId` | string | Original Shopify product ID (stringified) |
+| `title` | string | Shopify product title |
+| `handle` | string | Shopify handle |
+| `status` | string | Shopify status (`active`, `draft`, etc.) |
+| `vendor` | string | Shopify vendor |
+| `productType` | string | Shopify product type |
+| `tags` | array | Tags from Shopify (split & trimmed) |
+| `matchedCategorySlug` | string | Category guess produced during import |
+| `imageUrls` | array | Normalized image URLs |
+| `rawProduct` | map | Full Shopify payload (for downstream processing) |
+| `storefronts` | array | Storefronts recommended for this product (`[]` until processed) |
+| `processedStorefronts` | array | Storefronts where this product has already been processed |
+| `autoProcess` | boolean | Optional flag to auto-create processed product |
+| `createdAt` | timestamp | When import first stored the document |
+| `updatedAt` | timestamp | Last import update |
 
 ### products
-Top-level product metadata. Per-variant data lives in the `variants` subcollection.
+Processed (customer-facing) products. Single collection shared by all storefronts.
 
-| Field            | Type      | Notes                                                                    |
-|------------------|-----------|--------------------------------------------------------------------------|
-| `name`           | string    |                                                                          |
-| `slug`           | string    |                                                                          |
-| `categoryId`     | reference | Reference to `categories/{id}`                                           |
-| `supplierId`     | reference | Reference to `suppliers/{id}`                                            |
-| `basePrice`      | number    | Default price when no override on variant                                |
-| `description`    | string    | Plain-text summary shown in cards                                         |
-| `descriptionHtml`| string    | Sanitized rich text rendered on detail pages                              |
-| `images`         | array     | Array of primary image URLs                                               |
-| `extraImages`    | array     | Additional images parsed from rich content                                |
-| `careInstructions` | string  | Optional long-form field                                                  |
-| `tags`           | array     | Search/filter tags                                                        |
-| `specs`          | map       | Structured specs parsed from product description                          |
-| `active`         | boolean   | Whether product is visible                                                |
-| `metrics`        | map       | `{ totalViews, lastViewedAt, totalPurchases }`                            |
-| `createdAt`      | timestamp |                                                                            |
-| `updatedAt`      | timestamp |                                                                            |
+Path: `/products/{productId}`
 
-#### products/{productId}/variants
+| Field | Type | Notes |
+|-------|------|-------|
+| `name` | string | Display name |
+| `slug` | string | URL slug |
+| `storefronts` | array | Storefronts where product is visible (e.g. `['LUNERA', 'ATLANTIS']`) |
+| `categoryIds` | array | IDs of categories associated with this product |
+| `basePrice` | number | Default price when no variant override |
+| `description` | string | Plain text description |
+| `descriptionHtml` | string | Optional rich text description |
+| `bulletPoints` | array | Optional bullet point list |
+| `images` | array | Ordered list of primary image URLs |
+| `extraImages` | array | Additional images |
+| `tags` | array | Search/filter tags |
+| `active` | boolean | Whether product should be shown |
+| `sourceType` | string | `'shopify'` or `'manual'` |
+| `sourceShopifyId` | string | Shopify product ID if sourced from Shopify |
+| `manuallyEdited` | boolean | Indicates if admin modified content (webhooks preserve manual edits) |
+| `autoProcessedAt` | timestamp | When auto processing created this product (optional) |
+| `metrics` | map | `{ totalViews, totalPurchases, lastViewedAt }` |
+| `createdAt` | timestamp | |
+| `updatedAt` | timestamp | |
 
-| Field             | Type    | Notes                                                          |
-|-------------------|---------|----------------------------------------------------------------|
-| `size`            | string  | Nullable—some items may not have size                          |
-| `color`           | string  | Nullable                                                       |
-| `sku`             | string  | Optional identifier                                            |
-| `stock`           | number  | Inventory count for this variant                               |
-| `priceOverride`   | number  | Optional override; falls back to `basePrice` if null          |
-| `images`          | array   | Optional variant-specific image URLs (e.g., for color variants). Array of strings, typically 2-3 images per variant. |
-| `metrics`         | map     | `{ totalViews, totalAddedToCart, totalPurchases }`             |
-| `createdAt`       | timestamp |                                                              |
-| `updatedAt`       | timestamp |                                                              |
+#### Variants (subcollection)
+Path: `/products/{productId}/variants/{variantId}`
 
-### suppliers
-Minimal supplier registry.
+| Field | Type | Notes |
+|-------|------|-------|
+| `size` | string | Nullable |
+| `color` | string | Nullable |
+| `type` | string | Nullable (used when color is not applicable) |
+| `sku` | string | SKU |
+| `stock` | number | Inventory count |
+| `priceOverride` | number | Optional per-variant price |
+| `images` | array | Variant-specific images |
+| `shopifyVariantId` | string | Shopify variant ID |
+| `shopifyInventoryItemId` | string | Shopify inventory item ID (for stock sync) |
+| `createdAt` | timestamp | |
+| `updatedAt` | timestamp | |
 
-| Field          | Type      | Notes                   |
-|----------------|-----------|-------------------------|
-| `name`         | string    |                         |
-| `contactEmail` | string    |                         |
-| `phone`        | string    | Optional                 |
-| `address`      | map       | `{ street, city, state, zip, country }` |
-| `notes`        | string    | Internal notes           |
-| `createdAt`    | timestamp |                         |
+### categories
+Shared category definitions.
 
-### carts
-Tracks active shopping carts (guest or authenticated).
+Path: `/categories/{categoryId}`
 
-| Field        | Type      | Notes                                                                      |
-|--------------|-----------|----------------------------------------------------------------------------|
-| `userId`     | string    | UID for authenticated users; null for guests                               |
-| `sessionId`  | string    | Identifier for guest sessions (cookie-based, etc.)                         |
-| `items`      | array     | Array of `{ productId, variantId, quantity, priceAtAdd, addedAt }`         |
-| `status`     | string    | `'active'`, `'converted'`, `'abandoned'`                                   |
-| `lastUpdated`| timestamp | Updated whenever the cart mutates                                          |
+| Field | Type | Notes |
+|-------|------|-------|
+| `name` | string | Display name |
+| `slug` | string | URL slug |
+| `description` | string | Optional description |
+| `imageUrl` | string | Optional category image |
+| `storefronts` | array | Storefronts where category is visible |
+| `metrics` | map | `{ totalViews, lastViewedAt }` |
+| `createdAt` | timestamp | |
+| `updatedAt` | timestamp | |
 
 ### orders
-Immutable order records capturing purchases.
+Immutable order records (shared across storefronts).
 
-| Field             | Type      | Notes                                                                     |
-|-------------------|-----------|---------------------------------------------------------------------------|
-| `userId`          | string    | UID for authenticated users; null for guest orders                        |
-| `status`          | string    | `'pending'`, `'paid'`, `'shipped'`, `'cancelled'`                          |
-| `items`           | array     | `{ productId, variantId, quantity, unitPrice, subtotal }`                 |
-| `totals`          | map       | `{ subtotal, discounts, tax, shipping, grandTotal }`                      |
-| `shippingAddress` | map       | `{ name, address1, address2?, city, state, zip, country, phone }`         |
-| `paymentSummary`  | map       | `{ provider, transactionId, last4? }`                                     |
-| `placedAt`        | timestamp |                                                                           |
-| `fulfillment`     | map       | `{ shippedAt?, trackingNumber? }`                                         |
+Path: `/orders/{orderId}`
+
+Fields remain the same as earlier schema, with the addition of:
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `storefront` | string | Storefront associated with the order |
+
+### carts
+Path: `/carts/{cartId}` (unchanged). Optional `storefront` field may be added if carts become store-specific.
 
 ### promotions
-Stores discount codes / campaign metadata.
-
-| Field           | Type      | Notes                                                         |
-|-----------------|-----------|---------------------------------------------------------------|
-| `code`          | string    | Unique coupon code                                            |
-| `description`   | string    |                                                               |
-| `type`          | string    | `'percentage'` or `'amount'`                                  |
-| `value`         | number    | Discount value                                                |
-| `appliesTo`     | map       | Optional `{ categories: [ids], products: [ids] }`             |
-| `startDate`     | timestamp |                                                               |
-| `endDate`       | timestamp |                                                               |
-| `maxRedemptions`| number    | Optional cap                                                  |
-| `createdAt`     | timestamp |                                                               |
+Path: `/promotions/{promotionId}` (unchanged). Add `storefronts` array if promotions should be restricted.
 
 ### users
-Profile info for authenticated customers.
-
-| Field                 | Type      | Notes                                        |
-|-----------------------|-----------|----------------------------------------------|
-| `email`               | string    | Canonical email                              |
-| `displayName`         | string    |                                              |
-| `photoUrl`            | string    |                                              |
-| `marketingOptIn`      | boolean   |                                              |
-| `savedAddresses`      | array     | Stored shipping addresses                    |
-| `marketingPreferences`| map       | `{ categoriesInterestedIn: [] }`             |
-| `createdAt`           | timestamp |                                              |
+Path: `/users/{userId}` (unchanged).
 
 ### userEvents
-Raw analytics events for personalization.
-
-| Field       | Type      | Notes                                                            |
-|-------------|-----------|------------------------------------------------------------------|
-| `userId`    | string    | UID                                                           |
-| `eventType` | string    | `'view_category'`, `'view_product'`, `'add_to_cart'`, etc.      |
-| `entityId`  | string    | Corresponding category/product ID                               |
-| `metadata`  | map       | Optional `{ variantId, source }`                                |
-| `timestamp` | timestamp |                                                                  |
+Path: `/userEvents/{eventId}` (unchanged).
 
 ---
 
 ## Indexes
 
-Initial composite indexes to consider:
+Common composite indexes to define once data stabilizes:
 
-- Queries on products by `categoryId` and `active`.
-- Sorting products by `metrics.totalViews` or `createdAt` within a category.
-- Filtering variants by `productId` + `color` + `size` (if loaded via subcollection queries).
-- Orders by `userId` sorted by `placedAt`.
-- userEvents by `userId` sorted by `timestamp`.
-
-Define these once patterns emerge to stay under Firestore index limits.
+- Products filtered by `storefronts` and `active`.
+- Products filtered by `storefronts` + `categoryIds`.
+- Shopify staging filtered by `processedStorefronts`.
+- Orders by `storefront` + `placedAt`.
+- Any additional filters introduced in the admin UI (e.g., `storefronts` + `manuallyEdited`).
 
 ---
 
 ## Security Considerations
 
-- `products`, `categories`, and `promotions` read access: public.
-- Write access restricted to admin users (by UID list or role claim).
-- `carts` write access: owner user or session token; reads limited accordingly.
-- `orders` read access: owner user only; writes via Cloud Functions or authenticated actions.
-- `userEvents` writes: authenticated users only; no public reads.
-- Consider Cloud Functions to validate promotion redemption and inventory decrements.
+- Public read access allowed for `products`, `categories`, and `promotions` (with storefront filtering applied at query time).
+- Writes restricted to admin users (via Firebase Auth custom claims or allowlist).
+- Shopify webhooks require server credentials; ensure only backend calls can modify staging/processed data.
+- Orders readable only by owners or admin accounts; writes go through server-side logic.
+- Continue to secure `carts` and `userEvents` as before.
 
-Update this document whenever collections or access patterns change.
+Update this document whenever the schema evolves.

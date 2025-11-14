@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { getServerSideProductDetail, getServerSideInfo } from '@/lib/firestore-server';
+import { getServerSideProductDetail, getServerSideCategoryBySlug, getServerSideInfo } from '@/lib/firestore-server';
 import ProductDetailPage from '@/components/ProductDetailPage';
 
 export default async function ProductPage({ params }) {
@@ -13,18 +13,25 @@ export default async function ProductPage({ params }) {
     notFound();
   }
 
+  const storefront = 'LUNERA';
+
+  const category = await getServerSideCategoryBySlug(slug, storefront);
+  if (!category) {
+    notFound();
+  }
+
   const [detail, info] = await Promise.all([
-    getServerSideProductDetail(slug, productSlug),
+    getServerSideProductDetail(productSlug, storefront),
     getServerSideInfo(),
   ]);
 
-  if (!detail?.product || !detail?.category) {
+  if (!detail?.product) {
     notFound();
   }
 
   return (
     <ProductDetailPage
-      category={detail.category}
+      category={detail.category || category}
       product={detail.product}
       variants={detail.variants}
       info={info}

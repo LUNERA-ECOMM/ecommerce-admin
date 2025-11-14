@@ -4,38 +4,44 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { collection, getDocs } from 'firebase/firestore';
 import { getFirebaseDb } from '@/lib/firebase';
-import { getStoreCollectionPath } from '@/lib/store-collections';
+import { getCollectionPath } from '@/lib/store-collections';
 import { useWebsite } from '@/lib/website-context';
 import EditSiteInfoButton from '@/components/admin/EditSiteInfoButton';
 
 const QUICK_ACTIONS = [
   {
-    href: '/LUNERA/admin/products',
+    key: 'products',
+    path: 'products',
     title: 'Manage products',
     description: 'Review, edit, and publish store products.',
   },
   {
-    href: '/LUNERA/admin/products/new',
+    key: 'new-product',
+    path: 'products/new',
     title: 'Create product manually',
     description: 'Add a product that is not sourced from Shopify.',
   },
   {
-    href: '/LUNERA/admin/overview/shopifyItems',
+    key: 'shopify',
+    path: 'overview/shopifyItems',
     title: 'Process Shopify imports',
     description: 'Select images, variants, and publish imported items.',
   },
   {
-    href: '/LUNERA/admin/categories',
+    key: 'categories',
+    path: 'categories',
     title: 'Manage categories',
     description: 'Organize storefront collections and featured items.',
   },
   {
-    href: '/LUNERA/admin/promotions',
+    key: 'promotions',
+    path: 'promotions',
     title: 'Manage promotions',
     description: 'Schedule and monitor promotional campaigns.',
   },
   {
-    href: '/LUNERA/admin/analytics',
+    key: 'analytics',
+    path: 'analytics',
     title: 'Engagement analytics',
     description: 'Track category and product view metrics.',
   },
@@ -45,14 +51,13 @@ export default function EcommerceOverview() {
   const db = getFirebaseDb();
   const { selectedWebsite } = useWebsite();
   const [loading, setLoading] = useState(true);
-  const [summary, setSummary] = useState({
-    totalProducts: 0,
-    totalCategories: 0,
-    activeCategories: 0,
-    totalPromotions: 0,
-    pendingShopify: 0,
+  const [datasets, setDatasets] = useState({
+    categories: [],
+    products: [],
+    promotions: [],
+    shopifyItems: [],
   });
-  const [pendingShopifyPreview, setPendingShopifyPreview] = useState([]);
+  const [viewMode, setViewMode] = useState('selected'); // 'selected' | 'all'
 
   useEffect(() => {
     if (!db) {
@@ -66,17 +71,21 @@ export default function EcommerceOverview() {
       setLoading(true);
       try {
         const [categoriesSnap, productsSnap, promotionsSnap, shopifySnap] = await Promise.all([
-          getDocs(collection(db, ...getStoreCollectionPath('categories', selectedWebsite))),
-          getDocs(collection(db, ...getStoreCollectionPath('products', selectedWebsite))),
-          getDocs(collection(db, ...getStoreCollectionPath('promotions', selectedWebsite))),
-          getDocs(collection(db, selectedWebsite || 'LUNERA', 'shopify', 'items')),
+          getDocs(collection(db, ...getCollectionPath('categories', selectedWebsite))),
+          getDocs(collection(db, ...getCollectionPath('products', selectedWebsite))),
+          getDocs(collection(db, ...getCollectionPath('promotions', selectedWebsite))),
+          getDocs(collection(db, ...getCollectionPath('shopifyItems'))).catch((error) => {
+            // If shopifyItems fails due to permissions, return empty snapshot
+            console.warn('Failed to load shopifyItems (may need admin auth):', error.message);
+            return { docs: [] };
+          }),
         ]);
 
         if (!isMounted) return;
 
-        const categories = categoriesSnap.docs.map((doc) => doc.data());
-        const promotions = promotionsSnap.docs.map((doc) => doc.data());
-
+        const categories = categoriesSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        const products = productsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        const promotions = promotionsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         const shopifyItems = shopifySnap.docs.map((doc) => {
           const data = doc.data();
           const createdAt =
@@ -87,38 +96,30 @@ export default function EcommerceOverview() {
               : 0;
           return {
             id: doc.id,
-            title: data.title || '',
-            processed: data.processed || false,
+            ...data,
             createdAt,
+            processedStorefronts: Array.isArray(data.processedStorefronts) ? data.processedStorefronts : [],
+            storefronts: Array.isArray(data.storefronts) ? data.storefronts : [],
           };
         });
 
-        const pendingShopify = shopifyItems.filter((item) => !item.processed);
-
-        setSummary({
-          totalProducts: productsSnap.size,
-          totalCategories: categories.length,
-          activeCategories: categories.filter((category) => category.active !== false).length,
-          totalPromotions: promotions.length,
-          pendingShopify: pendingShopify.length,
+        console.log('📊 Loaded data:', {
+          categories: categories.length,
+          products: products.length,
+          promotions: promotions.length,
+          shopifyItems: shopifyItems.length,
+          shopifyItemsData: shopifyItems.map(item => ({
+            id: item.id,
+            title: item.title,
+            storefronts: item.storefronts,
+            processedStorefronts: item.processedStorefronts,
+          })),
         });
-
-        setPendingShopifyPreview(
-          pendingShopify
-            .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
-            .slice(0, 3)
-        );
+        setDatasets({ categories, products, promotions, shopifyItems });
       } catch (error) {
         console.error('Failed to load admin overview data', error);
         if (isMounted) {
-          setSummary({
-            totalProducts: 0,
-            totalCategories: 0,
-            activeCategories: 0,
-            totalPromotions: 0,
-            pendingShopify: 0,
-          });
-          setPendingShopifyPreview([]);
+          setDatasets({ categories: [], products: [], promotions: [], shopifyItems: [] });
         }
       } finally {
         if (isMounted) {
@@ -134,15 +135,126 @@ export default function EcommerceOverview() {
     };
   }, [db, selectedWebsite]);
 
+  useEffect(() => {
+    setViewMode('selected');
+  }, [selectedWebsite]);
+
+  const allStorefronts = useMemo(() => {
+    const set = new Set();
+    datasets.categories.forEach((category) => (category.storefronts || []).forEach((sf) => set.add(sf)));
+    datasets.products.forEach((product) => (product.storefronts || []).forEach((sf) => set.add(sf)));
+    datasets.promotions.forEach((promo) => (promo.storefronts || []).forEach((sf) => set.add(sf)));
+    if (set.size === 0) {
+      set.add(selectedWebsite || 'LUNERA');
+    }
+    return Array.from(set).sort();
+  }, [datasets, selectedWebsite]);
+
+  const effectiveSelectedStorefront = useMemo(() => {
+    if (allStorefronts.includes(selectedWebsite)) {
+      return selectedWebsite;
+    }
+    return allStorefronts[0];
+  }, [allStorefronts, selectedWebsite]);
+
+  const isPendingForStorefront = (item, storefront) => {
+    if (!storefront) {
+      return false;
+    }
+    const processed = item.processedStorefronts || [];
+    // If item has specific storefronts assigned, check those
+    // Otherwise, item is available for all storefronts
+    const targetStorefronts = item.storefronts && item.storefronts.length > 0 
+      ? item.storefronts 
+      : allStorefronts.length > 0 
+        ? allStorefronts 
+        : [storefront];
+    return targetStorefronts.includes(storefront) && !processed.includes(storefront);
+  };
+
+  const isPendingForAnyStorefront = (item) => {
+    const processed = item.processedStorefronts || [];
+    // If item has specific storefronts assigned, check those
+    // Otherwise, item is available for all storefronts (or pending if no storefronts exist yet)
+    const targets = item.storefronts && item.storefronts.length > 0 
+      ? item.storefronts 
+      : allStorefronts.length > 0 
+        ? allStorefronts 
+        : [selectedWebsite || 'LUNERA'];
+    if (targets.length === 0) {
+      return processed.length === 0;
+    }
+    return targets.some((sf) => !processed.includes(sf));
+  };
+
+  const summaryAll = useMemo(() => ({
+    totalProducts: datasets.products.length,
+    totalCategories: datasets.categories.length,
+    activeCategories: datasets.categories.filter((category) => category.active !== false).length,
+    totalPromotions: datasets.promotions.length,
+    pendingShopify: datasets.shopifyItems.filter((item) => isPendingForAnyStorefront(item)).length,
+  }), [datasets, allStorefronts]);
+
+  const summarySelected = useMemo(() => {
+    const store = effectiveSelectedStorefront;
+    const products = datasets.products.filter((product) => (product.storefronts || []).includes(store));
+    const categories = datasets.categories.filter((category) => (category.storefronts || []).includes(store));
+    const promotions = datasets.promotions.filter((promo) => (promo.storefronts || []).includes(store));
+    const pendingShopify = datasets.shopifyItems.filter((item) => isPendingForStorefront(item, store));
+
+    return {
+      totalProducts: products.length,
+      totalCategories: categories.length,
+      activeCategories: categories.filter((category) => category.active !== false).length,
+      totalPromotions: promotions.length,
+      pendingShopify: pendingShopify.length,
+    };
+  }, [datasets, effectiveSelectedStorefront, allStorefronts]);
+
+  const displayedSummary = viewMode === 'all' ? summaryAll : summarySelected;
+
+  const pendingShopifyPreview = useMemo(() => {
+    const items = viewMode === 'all'
+      ? datasets.shopifyItems.filter((item) => isPendingForAnyStorefront(item))
+      : datasets.shopifyItems.filter((item) => isPendingForStorefront(item, effectiveSelectedStorefront));
+
+    console.log('🔍 Pending Shopify preview:', {
+      viewMode,
+      effectiveSelectedStorefront,
+      allStorefronts,
+      totalItems: datasets.shopifyItems.length,
+      filteredItems: items.length,
+      items: items.map(item => ({ id: item.id, title: item.title })),
+    });
+
+    return items
+      .map((item) => ({
+        id: item.id,
+        title: item.title || '',
+        createdAt: item.createdAt || 0,
+      }))
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+      .slice(0, 5);
+  }, [datasets, viewMode, effectiveSelectedStorefront, allStorefronts]);
+
+  const quickActions = useMemo(
+    () =>
+      QUICK_ACTIONS.map((action) => ({
+        ...action,
+        href: `/${effectiveSelectedStorefront}/admin/${action.path}`,
+      })),
+    [effectiveSelectedStorefront]
+  );
+
   const summaryCards = useMemo(
     () => [
-      { label: 'Products', value: summary.totalProducts },
-      { label: 'Active categories', value: summary.activeCategories },
-      { label: 'Total categories', value: summary.totalCategories },
-      { label: 'Pending Shopify imports', value: summary.pendingShopify },
-      { label: 'Promotions', value: summary.totalPromotions },
+      { label: 'Products', value: displayedSummary.totalProducts },
+      { label: 'Active categories', value: displayedSummary.activeCategories },
+      { label: 'Total categories', value: displayedSummary.totalCategories },
+      { label: 'Pending Shopify imports', value: displayedSummary.pendingShopify },
+      { label: 'Promotions', value: displayedSummary.totalPromotions },
     ],
-    [summary]
+    [displayedSummary]
   );
 
   return (
@@ -162,6 +274,38 @@ export default function EcommerceOverview() {
           </div>
           <EditSiteInfoButton />
         </header>
+
+        {allStorefronts.length > 1 && (
+          <div className="flex items-center justify-between gap-4">
+            <div className="text-sm text-zinc-500 dark:text-zinc-400">
+              Viewing {viewMode === 'all' ? 'aggregate metrics across all storefronts' : `metrics for ${effectiveSelectedStorefront}`}
+            </div>
+            <div className="inline-flex rounded-full border border-zinc-200 bg-white/70 p-1 dark:border-zinc-700 dark:bg-zinc-900/60">
+              <button
+                type="button"
+                onClick={() => setViewMode('selected')}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                  viewMode === 'selected'
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'text-zinc-600 hover:text-emerald-600 dark:text-zinc-300 dark:hover:text-emerald-400'
+                }`}
+              >
+                {effectiveSelectedStorefront}
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('all')}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                  viewMode === 'all'
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'text-zinc-600 hover:text-emerald-600 dark:text-zinc-300 dark:hover:text-emerald-400'
+                }`}
+              >
+                All storefronts
+              </button>
+            </div>
+          </div>
+        )}
 
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {summaryCards.map((card) => (
@@ -183,7 +327,7 @@ export default function EcommerceOverview() {
               <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Quick actions</h2>
             </div>
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              {QUICK_ACTIONS.map((action) => (
+              {quickActions.map((action) => (
                 <Link
                   key={action.href}
                   href={action.href}
@@ -214,7 +358,7 @@ export default function EcommerceOverview() {
                 Shopify queue
               </h2>
               <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                {summary.pendingShopify > 0
+                {displayedSummary.pendingShopify > 0
                   ? 'Pending imports ready for processing.'
                   : 'All imported Shopify items are processed.'}
               </p>
@@ -229,20 +373,27 @@ export default function EcommerceOverview() {
                 No pending Shopify items.
               </div>
             ) : (
-              <ul className="space-y-3">
-                {pendingShopifyPreview.map((item) => (
-                  <li
-                    key={item.id}
-                    className="rounded-2xl border border-zinc-200/70 px-4 py-3 text-sm text-zinc-700 transition hover:border-emerald-200 hover:bg-emerald-50/60 dark:border-zinc-800/80 dark:text-zinc-200 dark:hover:border-emerald-500/40 dark:hover:bg-emerald-500/10"
-                  >
-                    <p className="line-clamp-2 font-medium">{item.title || 'Untitled item'}</p>
-                  </li>
-                ))}
-              </ul>
+              <>
+                <ul className="space-y-3">
+                  {pendingShopifyPreview.map((item) => (
+                    <li
+                      key={item.id}
+                      className="rounded-2xl border border-zinc-200/70 px-4 py-3 text-sm text-zinc-700 transition hover:border-emerald-200 hover:bg-emerald-50/60 dark:border-zinc-800/80 dark:text-zinc-200 dark:hover:border-emerald-500/40 dark:hover:bg-emerald-500/10"
+                    >
+                      <p className="line-clamp-2 font-medium">{item.title || 'Untitled item'}</p>
+                    </li>
+                  ))}
+                </ul>
+                {displayedSummary.pendingShopify > pendingShopifyPreview.length && (
+                  <p className="pt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                    Showing {pendingShopifyPreview.length} of {displayedSummary.pendingShopify} pending items.
+                  </p>
+                )}
+              </>
             )}
 
             <Link
-              href="/LUNERA/admin/overview/shopifyItems"
+              href={`/${effectiveSelectedStorefront}/admin/overview/shopifyItems`}
               className="mt-auto inline-flex items-center justify-center rounded-full border border-emerald-200 bg-emerald-50/60 px-4 py-2 text-xs font-semibold text-emerald-600 transition hover:border-emerald-300 hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:border-emerald-400"
             >
               Open Shopify queue

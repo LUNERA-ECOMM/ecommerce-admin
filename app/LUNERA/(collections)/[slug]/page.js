@@ -4,14 +4,15 @@ import { getServerSideCategoryBySlug, getServerSideProductsByCategory, getServer
 
 export default async function CategoryPage({ params }) {
   const { slug } = await params;
+  const storefront = 'LUNERA';
 
-  const category = await getServerSideCategoryBySlug(slug);
+  const category = await getServerSideCategoryBySlug(slug, storefront);
   if (!category) {
     notFound();
   }
 
   const [products, info] = await Promise.all([
-    getServerSideProductsByCategory(category.id),
+    getServerSideProductsByCategory(category.id, storefront),
     getServerSideInfo(),
   ]);
 

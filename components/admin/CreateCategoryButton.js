@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { addDoc, collection, doc, getDocs, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { getFirebaseDb } from '@/lib/firebase';
-import { getStoreCollectionPath, getStoreDocPath } from '@/lib/store-collections';
+import { getCollectionPath, getDocumentPath } from '@/lib/store-collections';
+import { useWebsite } from '@/lib/website-context';
 
 const slugify = (value) =>
   value
@@ -22,6 +23,7 @@ export default function CategoryModalButton({
   className = '',
 }) {
   const db = getFirebaseDb();
+  const { selectedWebsite } = useWebsite();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: '', description: '', imageUrl: '' });
   const [submitting, setSubmitting] = useState(false);
@@ -68,7 +70,7 @@ export default function CategoryModalButton({
       if (mode === 'edit' && category) {
         // When editing, check if the new name conflicts with another category
         const nameQuery = query(
-          collection(db, ...getStoreCollectionPath('categories')),
+          collection(db, ...getCollectionPath('categories', selectedWebsite)),
           where('name', '==', trimmedName)
         );
         const nameSnapshot = await getDocs(nameQuery);
@@ -88,19 +90,32 @@ export default function CategoryModalButton({
           updatedAt: serverTimestamp(),
         };
 
-        await updateDoc(doc(db, ...getStoreDocPath('categories', category.id)), payload);
+        await updateDoc(doc(db, ...getDocumentPath('categories', category.id, selectedWebsite)), {
+          ...payload,
+          storefronts: Array.isArray(category.storefronts) && category.storefronts.length > 0
+            ? category.storefronts
+            : [selectedWebsite],
+        });
 
         if (onCompleted) {
-          onCompleted({ id: category.id, ...category, ...payload });
+          onCompleted({
+            id: category.id,
+            ...category,
+            ...payload,
+            storefronts: Array.isArray(category.storefronts) && category.storefronts.length > 0
+              ? category.storefronts
+              : [selectedWebsite],
+          });
         }
       } else {
         // When creating, check if category with same name or slug already exists
+        const baseCollection = collection(db, ...getCollectionPath('categories', selectedWebsite));
         const nameQuery = query(
-          collection(db, ...getStoreCollectionPath('categories')),
+          baseCollection,
           where('name', '==', trimmedName)
         );
         const slugQuery = query(
-          collection(db, ...getStoreCollectionPath('categories')),
+          baseCollection,
           where('slug', '==', newSlug)
         );
 
@@ -127,6 +142,7 @@ export default function CategoryModalButton({
           description: form.description.trim(),
           imageUrl: form.imageUrl.trim() || null,
           active: true,
+          storefronts: [selectedWebsite],
           metrics: {
             totalViews: 0,
             lastViewedAt: null,
@@ -135,7 +151,7 @@ export default function CategoryModalButton({
           updatedAt: serverTimestamp(),
         };
 
-        const docRef = await addDoc(collection(db, ...getStoreCollectionPath('categories')), payload);
+        const docRef = await addDoc(baseCollection, payload);
         const createdCategory = { id: docRef.id, ...payload };
         if (onCompleted) {
           onCompleted(createdCategory);

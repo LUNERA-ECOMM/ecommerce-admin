@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { doc, getDoc, getDocs, setDoc, serverTimestamp, collection, addDoc, updateDoc, query, where, limit, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, getDocs, setDoc, serverTimestamp, collection, addDoc, updateDoc, query, where, limit, deleteDoc, arrayUnion } from 'firebase/firestore';
 import { getFirebaseDb } from '@/lib/firebase';
-import { getStoreCollectionPath, getStoreDocPath } from '@/lib/store-collections';
+import { getCollectionPath, getDocumentPath } from '@/lib/store-collections';
 import { useWebsite } from '@/lib/website-context';
 import Toast from '@/components/admin/Toast';
 import CategorySelector from '@/components/admin/CategorySelector';
@@ -175,10 +175,23 @@ const getVariantsWithSameColor = (options, variantsList, variantId) => {
   if (!variant) return [variantId];
 
   const colorKey = getVariantColorKey(options, variant);
-  if (!colorKey) return [variantId];
+  // If no color key, group by variant ID itself (single variant group)
+  if (!colorKey) {
+    // Try to find other variants with similar attributes (fallback grouping)
+    const fallbackKey = variant.option1 || variant.title?.split(' / ')[0] || 'default';
+    return variantsList
+      .filter((v) => {
+        const vKey = getVariantColorKey(options, v) || (v.option1 || v.title?.split(' / ')[0] || 'default');
+        return normalizeString(vKey) === normalizeString(fallbackKey);
+      })
+      .map((v) => v.id || v.shopifyId);
+  }
 
   return variantsList
-    .filter((v) => getVariantColorKey(options, v) === colorKey)
+    .filter((v) => {
+      const vColorKey = getVariantColorKey(options, v);
+      return vColorKey && normalizeString(vColorKey) === normalizeString(colorKey);
+    })
     .map((v) => v.id || v.shopifyId);
 };
 
@@ -204,11 +217,18 @@ const getManualVariantGroupKey = (variant) => {
  * - onSaved: Callback when product is saved
  */
 export default function ProductModal({ mode = 'shopify', shopifyItem, existingProduct, onClose, onSaved, initialCategoryId }) {
+  // Early returns MUST be before any hooks
+  if (mode === 'shopify' && !shopifyItem) return null;
+  if (mode === 'edit' && !existingProduct) return null;
+
   const db = getFirebaseDb();
-  const { selectedWebsite } = useWebsite();
+  const { selectedWebsite, availableWebsites } = useWebsite();
+  const [categories, setCategories] = useState([]);
+  const [categoryId, setCategoryId] = useState(initialCategoryId || '');
   const [loading, setLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
-  const [initialLoading, setInitialLoading] = useState(mode === 'edit');
+  const [error, setError] = useState(null);
+  const [storefrontSelections, setStorefrontSelections] = useState([]);
   
   // Form state
   const [selectedImages, setSelectedImages] = useState([]);
@@ -217,11 +237,11 @@ export default function ProductModal({ mode = 'shopify', shopifyItem, existingPr
   const [displayDescription, setDisplayDescription] = useState('');
   const [bulletPoints, setBulletPoints] = useState([]);
   const [basePriceInput, setBasePriceInput] = useState('');
-  const [categoryId, setCategoryId] = useState(initialCategoryId || '');
   const [showOnlyInStock, setShowOnlyInStock] = useState(false);
   const [expandedVariants, setExpandedVariants] = useState(new Set());
-  const [variantImages, setVariantImages] = useState({}); // { colorOrTypeKey: string[] } - photos grouped by color/type
   const [productId, setProductId] = useState(null); // For edit mode
+  const [variantImages, setVariantImages] = useState({});
+  const [defaultVariantId, setDefaultVariantId] = useState(null);
   
   // Manual mode: image URLs and variant creation
   const [manualImageUrls, setManualImageUrls] = useState([]); // Raw image URLs for manual mode
@@ -295,25 +315,27 @@ export default function ProductModal({ mode = 'shopify', shopifyItem, existingPr
   const getVariantDefaultImages = (variant) => {
     const variantId = variant.id || variant.shopifyId;
     const images = [];
-
-    if (item?.rawProduct?.images) {
-      const variantSpecificImages = item.rawProduct.images
-        .filter((img) => {
-          const imgVariantIds = img.variant_ids || [];
-          return imgVariantIds.includes(variantId);
-        })
-        .map((img) => img.src)
-        .filter(Boolean);
-
-      images.push(...variantSpecificImages);
-    }
-
     const variantImageId = variant.image_id || variant.imageId;
+    
+    // Prioritize the variant-specific photo (from image_id) - it should be first
     if (variantImageId && item?.rawProduct?.images) {
       const variantImage = item.rawProduct.images.find((img) => img.id === variantImageId);
       if (variantImage?.src) {
         images.push(variantImage.src);
       }
+    }
+
+    // Then add other variant-specific images
+    if (item?.rawProduct?.images) {
+      const variantSpecificImages = item.rawProduct.images
+        .filter((img) => {
+          const imgVariantIds = img.variant_ids || [];
+          return imgVariantIds.includes(variantId) && img.id !== variantImageId; // Exclude the main variant image we already added
+        })
+        .map((img) => img.src)
+        .filter(Boolean);
+
+      images.push(...variantSpecificImages);
     }
 
     return Array.from(new Set(images.filter(Boolean)));
@@ -364,12 +386,24 @@ export default function ProductModal({ mode = 'shopify', shopifyItem, existingPr
     const variant = allVariants.find((v) => (v.id || v.shopifyId) === variantId);
     if (!variant) return;
     
+    // Check if this image is in the main gallery selection
+    const isMainGalleryImage = selectedImages.some((img) => img.url === imageUrl);
+    
+    // If it's a main gallery image, toggle it in the main gallery instead
+    if (isMainGalleryImage) {
+      handleImageToggle(imageUrl);
+      return;
+    }
+    
+    // Otherwise, it's a variant-specific image - toggle it in variantImages
     const groupKey = getVariantGroupKey(variant);
     const sameGroupVariantIds = getSameColorVariantIds(variantId);
 
     setVariantImages((prev) => {
       const updated = { ...prev };
-      const current = prev[groupKey] || [];
+      const baseSelectionsRaw = prev[groupKey] || prev[variantId] || [];
+      const baseSelections = Array.isArray(baseSelectionsRaw) ? [...baseSelectionsRaw] : [];
+      const current = [...baseSelections];
       const exists = current.includes(imageUrl);
 
       if (exists) {
@@ -377,29 +411,47 @@ export default function ProductModal({ mode = 'shopify', shopifyItem, existingPr
         updated[groupKey] = current.filter((url) => url !== imageUrl);
         // Also remove from all variants in this group (for backward compatibility)
         sameGroupVariantIds.forEach((id) => {
-          updated[id] = (updated[id] || []).filter((url) => url !== imageUrl);
+          const previousVariantSelectionsRaw = updated[id] || prev[id] || baseSelections;
+          const previousVariantSelections = Array.isArray(previousVariantSelectionsRaw)
+            ? [...previousVariantSelectionsRaw]
+            : [];
+          updated[id] = previousVariantSelections.filter((url) => url !== imageUrl);
         });
         return updated;
       }
 
       // Selecting: add to group
-      if (!updated[groupKey]) {
-        updated[groupKey] = [];
+      const nextGroupSelections = updated[groupKey]
+        ? [...updated[groupKey]]
+        : [...baseSelections];
+      if (!nextGroupSelections.includes(imageUrl)) {
+        nextGroupSelections.push(imageUrl);
       }
-      if (!updated[groupKey].includes(imageUrl)) {
-        updated[groupKey] = [...updated[groupKey], imageUrl];
-      }
+      updated[groupKey] = nextGroupSelections;
+
       // Also add to all variants in this group (for backward compatibility)
       sameGroupVariantIds.forEach((id) => {
-        if (!updated[id]) {
-          updated[id] = [];
+        const previousVariantSelectionsRaw = updated[id] || prev[id] || baseSelections;
+        const previousVariantSelections = Array.isArray(previousVariantSelectionsRaw)
+          ? [...previousVariantSelectionsRaw]
+          : [];
+        if (!previousVariantSelections.includes(imageUrl)) {
+          previousVariantSelections.push(imageUrl);
         }
-        if (!updated[id].includes(imageUrl)) {
-          updated[id] = [...updated[id], imageUrl];
-        }
+        updated[id] = previousVariantSelections;
       });
-
       return updated;
+    });
+
+    // Ensure variants in this group are selected when an image is chosen
+    if (!setSelectedVariants) {
+      return;
+    }
+
+    setSelectedVariants((prev) => {
+      const next = new Set(prev);
+      sameGroupVariantIds.forEach((id) => next.add(id));
+      return Array.from(next);
     });
   };
 
@@ -470,23 +522,40 @@ export default function ProductModal({ mode = 'shopify', shopifyItem, existingPr
 
     const loadExistingProduct = async () => {
       try {
-        setInitialLoading(true);
+        setLoading(true);
         const productId = existingProduct.id;
         setProductId(productId);
 
-        // Load product document
-        const productDoc = await getDoc(doc(db, ...getStoreDocPath('products', productId, selectedWebsite)));
+        // Load product document from current storefront (or try to find it in any storefront)
+        let productDoc = null;
+        let productStorefront = selectedWebsite;
+        
+        // Try current storefront first
+        productDoc = await getDoc(doc(db, ...getDocumentPath('products', productId, selectedWebsite)));
+        
+        // If not found, try to find in any storefront
+        if (!productDoc.exists()) {
+          const allStorefronts = availableWebsites.length > 0 ? availableWebsites : ['LUNERA'];
+          for (const storefront of allStorefronts) {
+            productDoc = await getDoc(doc(db, ...getDocumentPath('products', productId, storefront)));
+            if (productDoc.exists()) {
+              productStorefront = storefront;
+              break;
+            }
+          }
+        }
+        
         if (!productDoc.exists()) {
           setToastMessage({ type: 'error', text: 'Product not found.' });
-          setInitialLoading(false);
+          setLoading(false);
           return;
         }
 
         const productData = productDoc.data();
 
-        // Load variants
+        // Load variants from the storefront where product was found
         const variantsSnapshot = await getDocs(
-          collection(db, ...getStoreDocPath('products', productId, selectedWebsite), 'variants')
+          collection(db, ...getDocumentPath('products', productId, productStorefront), 'variants')
         );
         const variantsData = variantsSnapshot.docs.map((doc) => ({
           id: doc.id,
@@ -517,12 +586,13 @@ export default function ProductModal({ mode = 'shopify', shopifyItem, existingPr
         setDisplayName(productData.name || '');
         setDisplayDescription(productData.description || '');
         setBulletPoints(productData.bulletPoints || []);
-        setCategoryId(productData.categoryId || '');
+        setCategoryId(productData.categoryId || productData.categoryIds?.[0] || '');
         setBasePriceInput(
           productData.basePrice !== undefined && productData.basePrice !== null
             ? productData.basePrice.toString()
             : ''
         );
+        setDefaultVariantId(productData.defaultVariantId || null);
 
         // Set images
         const productImages = productData.images || [];
@@ -543,16 +613,22 @@ export default function ProductModal({ mode = 'shopify', shopifyItem, existingPr
         });
         setVariantImages(variantImagesMap);
 
-        setInitialLoading(false);
+        setStorefrontSelections(
+          Array.isArray(productData.storefronts) && productData.storefronts.length > 0
+            ? productData.storefronts
+            : [selectedWebsite]
+        );
+
+        setLoading(false);
       } catch (error) {
         console.error('Failed to load product:', error);
         setToastMessage({ type: 'error', text: 'Failed to load product data.' });
-        setInitialLoading(false);
+        setLoading(false);
       }
     };
 
     loadExistingProduct();
-  }, [mode, existingProduct, db, selectedWebsite]);
+  }, [mode, existingProduct, db]);
 
   // Initialize Shopify item data
   useEffect(() => {
@@ -600,14 +676,12 @@ export default function ProductModal({ mode = 'shopify', shopifyItem, existingPr
     });
 
     colorGroups.forEach((groupVariants) => {
-      const firstVariant = groupVariants[0];
-      const defaults = getVariantDefaultImages(firstVariant);
-      const uniqueDefaults = Array.from(new Set(defaults));
-
       groupVariants.forEach((variant) => {
         const variantId = variant.id || variant.shopifyId;
-        if (uniqueDefaults.length > 0) {
-          initialVariantImages[variantId] = [...uniqueDefaults];
+        // Get variant-specific images for THIS variant (prioritizing its image_id photo)
+        const defaults = getVariantDefaultImages(variant);
+        if (defaults.length > 0) {
+          initialVariantImages[variantId] = [...defaults];
         }
       });
     });
@@ -624,7 +698,7 @@ export default function ProductModal({ mode = 'shopify', shopifyItem, existingPr
     if (!db || !slug) return;
     try {
       const categoriesQuery = query(
-        collection(db, ...getStoreCollectionPath('categories', selectedWebsite)),
+        collection(db, ...getCollectionPath('categories', selectedWebsite)),
         where('slug', '==', slug),
         limit(1)
       );
@@ -646,11 +720,15 @@ export default function ProductModal({ mode = 'shopify', shopifyItem, existingPr
         if (exists.isMain && filtered.length > 0) {
           filtered[0].isMain = true;
         }
+        // Note: We don't remove from variantImages here because variant images are now
+        // automatically synced with selectedImages. Variant-specific images are separate.
         return filtered;
       } else {
         // If no images selected, make this one main
         const isMain = prev.length === 0;
-        return [...prev, { url: imageUrl, isMain }];
+        const newSelected = [...prev, { url: imageUrl, isMain }];
+        // Note: Variant images will automatically include selectedImages, so no need to update here
+        return newSelected;
       }
     });
   };
@@ -678,6 +756,10 @@ export default function ProductModal({ mode = 'shopify', shopifyItem, existingPr
       const alreadySelected = prev.includes(variantId);
       if (alreadySelected) {
         // Unselecting: only remove this specific variant
+        // If this was the default variant, clear it
+        if (defaultVariantId === variantId) {
+          setDefaultVariantId(null);
+        }
         return prev.filter((id) => id !== variantId);
       }
 
@@ -786,33 +868,60 @@ export default function ProductModal({ mode = 'shopify', shopifyItem, existingPr
 
     setLoading(true);
     try {
-      const productsCollection = collection(db, ...getStoreCollectionPath('products', selectedWebsite));
+      // Ensure at least one storefront is selected (default to selectedWebsite)
+      const selectedStorefronts = storefrontSelections.length > 0 ? storefrontSelections : [selectedWebsite];
+      
+      if (selectedStorefronts.length === 0) {
+        setToastMessage({ type: 'error', text: 'Please select at least one storefront.' });
+        setLoading(false);
+        return;
+      }
+      
+      // Note: productsCollection is not used directly - we create per-storefront collections in the loop below
       
       // For edit mode, skip uniqueness check (same product)
-      // For create modes, check uniqueness
+      // For create modes, check uniqueness across all selected storefronts
       if (mode !== 'edit') {
-        const [existingNameSnapshot, existingSlugSnapshot] = await Promise.all([
-          getDocs(query(productsCollection, where('name', '==', displayName), limit(1))),
-          getDocs(query(productsCollection, where('slug', '==', slug), limit(1))),
-        ]);
+        const uniquenessChecks = await Promise.all(
+          selectedStorefronts.map(async (storefront) => {
+            const storefrontProductsCollection = collection(db, ...getCollectionPath('products', storefront));
+            const [nameSnapshot, slugSnapshot] = await Promise.all([
+              getDocs(query(storefrontProductsCollection, where('name', '==', displayName), limit(1))),
+              getDocs(query(storefrontProductsCollection, where('slug', '==', slug), limit(1))),
+            ]);
+            return { nameExists: !nameSnapshot.empty, slugExists: !slugSnapshot.empty };
+          })
+        );
+        
+        const nameExists = uniquenessChecks.some((check) => check.nameExists);
+        const slugExists = uniquenessChecks.some((check) => check.slugExists);
 
-        if (!existingNameSnapshot.empty || !existingSlugSnapshot.empty) {
+        if (nameExists || slugExists) {
           setToastMessage({
             type: 'error',
-            text: 'A product with this name already exists. Please choose a different display name.',
+            text: 'A product with this name or slug already exists in one of the selected storefronts. Please choose a different display name.',
           });
           setLoading(false);
           return;
         }
       } else {
-        // For edit mode, check if name/slug conflicts with OTHER products
-        const [existingNameSnapshot, existingSlugSnapshot] = await Promise.all([
-          getDocs(query(productsCollection, where('name', '==', displayName), limit(2))),
-          getDocs(query(productsCollection, where('slug', '==', slug), limit(2))),
-        ]);
+        // For edit mode, check if name/slug conflicts with OTHER products in the storefronts where this product exists
+        // Find product in all storefronts first
+        const editUniquenessChecks = await Promise.all(
+          selectedStorefronts.map(async (storefront) => {
+            const storefrontProductsCollection = collection(db, ...getCollectionPath('products', storefront));
+            const [nameSnapshot, slugSnapshot] = await Promise.all([
+              getDocs(query(storefrontProductsCollection, where('name', '==', displayName), limit(2))),
+              getDocs(query(storefrontProductsCollection, where('slug', '==', slug), limit(2))),
+            ]);
+            const nameConflict = nameSnapshot.docs.some((doc) => doc.id !== productId);
+            const slugConflict = slugSnapshot.docs.some((doc) => doc.id !== productId);
+            return { nameConflict, slugConflict };
+          })
+        );
 
-        const nameConflict = existingNameSnapshot.docs.some((doc) => doc.id !== productId);
-        const slugConflict = existingSlugSnapshot.docs.some((doc) => doc.id !== productId);
+        const nameConflict = editUniquenessChecks.some((check) => check.nameConflict);
+        const slugConflict = editUniquenessChecks.some((check) => check.slugConflict);
 
         if (nameConflict || slugConflict) {
           setToastMessage({
@@ -870,41 +979,95 @@ export default function ProductModal({ mode = 'shopify', shopifyItem, existingPr
       const sourceType = mode === 'shopify' ? 'shopify' : 'manual';
       const sourceShopifyId = mode === 'shopify' ? item.shopifyId : (mode === 'edit' ? existingProduct?.sourceShopifyId : null);
 
+      const categoryIds = categoryId ? [categoryId] : [];
+
+      // Validate default variant is selected
+      const validatedDefaultVariantId = defaultVariantId && selectedVariants.includes(defaultVariantId)
+        ? defaultVariantId
+        : null;
+
       const productData = {
         name: displayName,
         slug,
-        categoryId,
+        categoryIds,
         basePrice: parsedBasePrice,
         description: displayDescription,
+        defaultVariantId: validatedDefaultVariantId,
         bulletPoints: bulletPoints.filter(Boolean),
         images: [mainImage, ...additionalImages],
         active: true,
         sourceType,
         ...(sourceShopifyId ? { sourceShopifyId } : {}),
+        manuallyEdited: true,
         updatedAt: serverTimestamp(),
         ...(mode !== 'edit' ? { createdAt: serverTimestamp() } : {}),
+        storefronts: selectedStorefronts,
       };
 
-      let productRef;
-      if (mode === 'edit') {
-        // Update existing product
-        await updateDoc(doc(db, ...getStoreDocPath('products', productId, selectedWebsite)), productData);
-        productRef = { id: productId };
+      // Save product to each selected storefront folder
+      const productRefs = [];
+      
+      for (const storefront of selectedStorefronts) {
+        const storefrontProductsCollection = collection(db, ...getCollectionPath('products', storefront));
+        
+        if (mode === 'edit') {
+          // For edit mode, try to find product by ID first, then by sourceShopifyId
+          let existingDoc = null;
+          
+          // First try by productId (if we know it)
+          if (productId) {
+            try {
+              const productDoc = await getDoc(doc(db, ...getDocumentPath('products', productId, storefront)));
+              if (productDoc.exists()) {
+                existingDoc = productDoc;
+              }
+            } catch (e) {
+              // Product doesn't exist in this storefront
+            }
+          }
+          
+          // If not found by ID, try by sourceShopifyId
+          if (!existingDoc && sourceShopifyId) {
+            const existingProductQuery = query(
+              storefrontProductsCollection,
+              where('sourceShopifyId', '==', sourceShopifyId),
+              limit(1)
+            );
+            const existingSnapshot = await getDocs(existingProductQuery);
+            if (!existingSnapshot.empty) {
+              existingDoc = existingSnapshot.docs[0];
+            }
+          }
+          
+          if (existingDoc) {
+            // Update existing product
+            await updateDoc(existingDoc.ref, productData);
+            productRefs.push({ id: existingDoc.id, storefront });
+            
+            // Delete existing variants that are not selected
+            const existingVariantsSnapshot = await getDocs(
+              collection(db, ...getDocumentPath('products', existingDoc.id, storefront), 'variants')
+            );
+            const existingVariantIds = existingVariantsSnapshot.docs.map((doc) => doc.id);
+            const variantsToDelete = existingVariantIds.filter((id) => !selectedVariants.includes(id));
 
-        // Delete existing variants that are not selected
-        const existingVariantsSnapshot = await getDocs(
-          collection(db, ...getStoreDocPath('products', productId, selectedWebsite), 'variants')
-        );
-        const existingVariantIds = existingVariantsSnapshot.docs.map((doc) => doc.id);
-        const variantsToDelete = existingVariantIds.filter((id) => !selectedVariants.includes(id));
-
-        for (const variantId of variantsToDelete) {
-          await deleteDoc(doc(db, ...getStoreDocPath('products', productId, selectedWebsite), 'variants', variantId));
+            for (const variantId of variantsToDelete) {
+              await deleteDoc(doc(db, ...getDocumentPath('products', existingDoc.id, storefront), 'variants', variantId));
+            }
+          } else {
+            // Product doesn't exist in this storefront, create it
+            const newProductRef = await addDoc(storefrontProductsCollection, productData);
+            productRefs.push({ id: newProductRef.id, storefront });
+          }
+        } else {
+          // Create new product in this storefront
+          const newProductRef = await addDoc(storefrontProductsCollection, productData);
+          productRefs.push({ id: newProductRef.id, storefront });
         }
-      } else {
-        // Create new product
-        productRef = await addDoc(productsCollection, productData);
       }
+      
+      // Use first product ref for variant operations (we'll save variants to all storefronts)
+      const productRef = productRefs[0] || { id: null };
 
       // Add/update variants
       for (const variant of selectedVariantData) {
@@ -928,7 +1091,28 @@ export default function ProductModal({ mode = 'shopify', shopifyItem, existingPr
           }
         }
 
-        const uniqueVariantImages = Array.from(new Set(variantImageUrls.filter(Boolean)));
+        // Always add main product photos to variant images (they show with all variants)
+        // But keep variant-specific images first (especially the main variant photo)
+        const allMainImages = selectedImages.map((img) => img.url);
+        // Preserve order: variant-specific images first, then main images
+        const uniqueVariantImages = [];
+        const seen = new Set();
+        
+        // Add variant-specific images first (preserving their order)
+        variantImageUrls.forEach((url) => {
+          if (url && !seen.has(url)) {
+            uniqueVariantImages.push(url);
+            seen.add(url);
+          }
+        });
+        
+        // Then add main images (excluding duplicates)
+        allMainImages.forEach((url) => {
+          if (url && !seen.has(url)) {
+            uniqueVariantImages.push(url);
+            seen.add(url);
+          }
+        });
         
         // Get variant attributes - for manual/edit mode, use direct properties
         const { color: normalizedColor, size: normalizedSize, type: normalizedType } = mode === 'shopify'
@@ -947,30 +1131,43 @@ export default function ProductModal({ mode = 'shopify', shopifyItem, existingPr
           stock: variant.inventory_quantity || variant.inventoryQuantity || variant.stock || 0,
           priceOverride: parseFloat(variant.price || variant.priceOverride || 0) || null,
           images: uniqueVariantImages,
+          ...(mode === 'shopify' && variant.inventory_item_id
+            ? { shopifyInventoryItemId: variant.inventory_item_id }
+            : {}),
           updatedAt: serverTimestamp(),
           ...(mode !== 'edit' || !variant.id ? { createdAt: serverTimestamp() } : {}),
         };
 
-        if (mode === 'edit' && variant.id) {
-          // Update existing variant
-          await updateDoc(
-            doc(db, ...getStoreDocPath('products', productId, selectedWebsite), 'variants', variant.id),
-            variantData
-          );
-        } else {
-          // Create new variant
-          await addDoc(
-            collection(db, ...getStoreDocPath('products', productRef.id, selectedWebsite), 'variants'),
-            variantData
-          );
+        // Save variant to all storefronts where product exists
+        for (const productRefInfo of productRefs) {
+          if (mode === 'edit' && variant.id) {
+            // Try to find existing variant in this storefront
+            const variantRef = doc(db, ...getDocumentPath('products', productRefInfo.id, productRefInfo.storefront), 'variants', variant.id);
+            try {
+              await updateDoc(variantRef, variantData);
+            } catch (error) {
+              // Variant doesn't exist in this storefront, create it
+              await setDoc(variantRef, variantData);
+            }
+          } else {
+            // Create new variant in this storefront
+            await addDoc(
+              collection(db, ...getDocumentPath('products', productRefInfo.id, productRefInfo.storefront), 'variants'),
+              variantData
+            );
+          }
         }
       }
 
       // Mark Shopify item as processed (only for shopify mode)
       if (mode === 'shopify' && item?.id) {
         await setDoc(
-          doc(db, selectedWebsite, 'shopify', 'items', item.id),
-          { processed: true, processedAt: serverTimestamp() },
+          doc(db, ...getDocumentPath('shopifyItems', item.id)),
+          {
+            processedStorefronts: arrayUnion(...selectedStorefronts),
+            storefronts: arrayUnion(...selectedStorefronts),
+            updatedAt: serverTimestamp(),
+          },
           { merge: true }
         );
       }
@@ -1020,26 +1217,6 @@ export default function ProductModal({ mode = 'shopify', shopifyItem, existingPr
   const sourceShopifyId = mode === 'shopify' 
     ? item?.shopifyId 
     : (mode === 'edit' ? existingProduct?.sourceShopifyId : null);
-
-  // Don't render if required data is missing
-  if (mode === 'shopify' && !item) return null;
-  if (mode === 'edit' && !existingProduct) return null;
-  if (initialLoading) {
-    return createPortal(
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-        <div className="rounded-lg bg-white p-6 dark:bg-zinc-900">
-          <div className="flex items-center gap-3">
-            <svg className="h-5 w-5 animate-spin text-emerald-600" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-            </svg>
-            <span className="text-sm text-zinc-700 dark:text-zinc-300">Loading product...</span>
-          </div>
-        </div>
-      </div>,
-      document.body
-    );
-  }
   
   const availableVariants = showOnlyInStock
     ? allVariants.filter((v) => (v.inventory_quantity || v.inventoryQuantity || 0) > 0)
@@ -1098,6 +1275,26 @@ export default function ProductModal({ mode = 'shopify', shopifyItem, existingPr
   
   const optionLabels = normalizedOptionLabels;
 
+  const getCategoryName = (categoryId) => {
+    const category = categories.find((cat) => cat.id === categoryId);
+    return category?.name || '—';
+  };
+
+  const toggleStorefront = (storefront) => {
+    setStorefrontSelections((prev) => {
+      if (prev.includes(storefront)) {
+        return prev.filter((s) => s !== storefront);
+      }
+      return [...prev, storefront];
+    });
+  };
+
+  useEffect(() => {
+    if (mode !== 'edit') {
+      setStorefrontSelections([selectedWebsite]);
+    }
+  }, [mode, selectedWebsite]);
+
   return (
     <>
       {createPortal(
@@ -1116,6 +1313,17 @@ export default function ProductModal({ mode = 'shopify', shopifyItem, existingPr
                 position="absolute"
                 offsetClass="bottom-6 left-1/2 -translate-x-1/2"
               />
+            )}
+            {loading && (
+              <div className="absolute inset-0 z-50 flex items-center justify-center rounded-3xl bg-white/90 backdrop-blur-sm dark:bg-zinc-900/90">
+                <div className="flex items-center gap-3">
+                  <svg className="h-5 w-5 animate-spin text-emerald-600" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                  </svg>
+                  <span className="text-sm text-zinc-700 dark:text-zinc-300">Saving product...</span>
+                </div>
+              </div>
             )}
             <div className="mx-auto w-full max-w-4xl">
               <div className="mb-6 flex items-center justify-between">
@@ -1348,9 +1556,48 @@ export default function ProductModal({ mode = 'shopify', shopifyItem, existingPr
                 {availableVariants.length > 0 ? (
                   <div>
                     <div className="mb-3 flex items-center justify-between">
-                      <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                        Select Variants ({selectedVariants.length} selected)
-                      </label>
+                      <div className="flex items-center gap-3">
+                        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                          Select Variants ({selectedVariants.length} selected)
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const allSelectableIds = availableVariants
+                              .filter((v) => {
+                                const variantId = v.id || v.shopifyId;
+                                const stock = mode === 'shopify'
+                                  ? (v.inventory_quantity || v.inventoryQuantity || 0)
+                                  : (v.stock || 0);
+                                return mode === 'manual' || mode === 'edit' || stock > 0;
+                              })
+                              .map((v) => v.id || v.shopifyId);
+                            const allSelected = allSelectableIds.every((id) => selectedVariants.includes(id));
+                            if (allSelected) {
+                              setSelectedVariants([]);
+                            } else {
+                              setSelectedVariants([...new Set([...selectedVariants, ...allSelectableIds])]);
+                            }
+                          }}
+                          className="text-xs text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
+                        >
+                          {availableVariants
+                            .filter((v) => {
+                              const variantId = v.id || v.shopifyId;
+                              const stock = mode === 'shopify'
+                                ? (v.inventory_quantity || v.inventoryQuantity || 0)
+                                : (v.stock || 0);
+                              return (mode === 'manual' || mode === 'edit' || stock > 0) && selectedVariants.includes(variantId);
+                            }).length === availableVariants.filter((v) => {
+                              const stock = mode === 'shopify'
+                                ? (v.inventory_quantity || v.inventoryQuantity || 0)
+                                : (v.stock || 0);
+                              return mode === 'manual' || mode === 'edit' || stock > 0;
+                            }).length
+                            ? 'Deselect All'
+                            : 'Select All'}
+                        </button>
+                      </div>
                       <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
                         <input
                           type="checkbox"
@@ -1361,7 +1608,7 @@ export default function ProductModal({ mode = 'shopify', shopifyItem, existingPr
                         Show only in-stock
                       </label>
                     </div>
-                    <div className="max-h-96 overflow-y-auto overflow-x-hidden space-y-3 rounded-lg border border-zinc-200 dark:border-zinc-700 p-3">
+                    <div className="max-h-[36rem] overflow-y-auto overflow-x-hidden space-y-3 rounded-lg border border-zinc-200 dark:border-zinc-700 p-3">
                       {availableVariants.map((variant, index) => {
                         const variantId = variant.id || variant.shopifyId;
                         const isSelected = selectedVariants.includes(variantId);
@@ -1369,119 +1616,94 @@ export default function ProductModal({ mode = 'shopify', shopifyItem, existingPr
                           ? (variant.inventory_quantity || variant.inventoryQuantity || 0)
                           : (variant.stock || 0);
                         const isOutOfStock = stock <= 0;
-                        const selectedVariantImages = getSelectedVariantImages(variantId);
+                        const selectedVariantImagesForVariant = getSelectedVariantImages(variantId);
                         const previewImage =
-                          selectedVariantImages[0] ||
+                          selectedVariantImagesForVariant[0] ||
                           getVariantDefaultImages(variant)[0] ||
                           selectedImages.find((img) => img.isMain)?.url ||
                           selectedImages[0]?.url ||
                           availableImages[0];
                         const isExpanded = expandedVariants.has(variantId);
-                        const availableVariantImages = getAvailableImagesForVariant(variant);
-                        // Determine if this is a new color/type group
-                        const currentGroupKey = getVariantGroupKey(variant);
-                        const previousVariant = index > 0 ? availableVariants[index - 1] : null;
-                        const previousGroupKey = previousVariant ? getVariantGroupKey(previousVariant) : null;
-                        const isNewColorGroup = index > 0 && currentGroupKey !== previousGroupKey;
+                        const variantInstance = availableVariants.find((v) => (v.id || v.shopifyId) === variantId) || variant;
+                        const sameGroupVariants = getSameColorVariantIds(variantId);
+                        const groupKey = getVariantGroupKey(variantInstance);
+                        let displayGroup = 'this variant';
+                        if (mode === 'shopify') {
+                          const { color: colorLabel } = getVariantAttributes(variantInstance);
+                          displayGroup = colorLabel || variantInstance?.title?.split(' / ')[0] || 'this color';
+                        } else {
+                          if (variantInstance?.color) {
+                            displayGroup = variantInstance.color;
+                          } else if (variantInstance?.type) {
+                            displayGroup = variantInstance.type;
+                          }
+                        }
+                        // Variant-specific images (original variant photos) - get for THIS specific variant
+                        const thisVariantSpecificImages = variantImages[variantId] || [];
+                        // Group-level variant images (for backward compatibility)
+                        const groupVariantImages = variantImages[groupKey] || [];
+                        // Combine: this variant's specific images first, then group images
+                        const variantSpecificImages = [...new Set([...thisVariantSpecificImages, ...groupVariantImages])];
+                        // Main gallery selected images
+                        const mainGallerySelectedUrls = selectedImages.map((img) => img.url);
+                        // Combined: variant-specific images first (original variant photo), then main gallery selections
+                        const groupSelectedImages = [...new Set([...variantSpecificImages, ...mainGallerySelectedUrls])];
+                        // Available images: all main gallery images + variant-specific images
+                        const variantDefaultImages = getVariantDefaultImages(variantInstance);
+                        const availableVariantImages = Array.from(new Set([
+                          ...availableImages, // All main gallery images
+                          ...variantDefaultImages // Original variant photos
+                        ]));
+                        const selectedAttributeLabels = (variant.selectedOptions || []).map((option) => ({
+                          label: option?.name || 'Option',
+                          value: option?.value || '',
+                        }));
 
                         return (
                           <div
                             key={variantId}
-                            className={`rounded-xl border ${
-                              isSelected
-                                ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-900/15'
-                                : 'border-zinc-200 dark:border-zinc-700'
-                            } ${isNewColorGroup ? 'mt-2' : ''}`}
+                            className={`rounded-xl border border-zinc-200 bg-white shadow-sm transition dark:border-zinc-700 dark:bg-zinc-900 ${
+                              isSelected ? 'ring-1 ring-emerald-400 dark:ring-emerald-500' : ''
+                            }`}
                           >
-                            <div className="flex w-full items-start gap-4 px-3 py-3">
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                disabled={isOutOfStock}
-                                onChange={() => handleVariantToggle(variantId)}
-                                className="mt-1 rounded border-zinc-300 disabled:cursor-not-allowed"
-                              />
-                              <div className="flex flex-1 flex-wrap items-start gap-4 text-sm text-zinc-800 dark:text-zinc-100">
-                                {mode === 'shopify' ? (
-                                  optionLabels.length > 0 ? (
-                                    optionLabels.map((label, index) => {
-                                      const value = variant[`option${index + 1}`] || '-';
-                                      return (
-                                        <div key={`${variantId}-${label}`} className="min-w-[140px]">
-                                          <p className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                                            {label}
-                                          </p>
-                                          <p className="font-medium">{value}</p>
-                                        </div>
-                                      );
-                                    })
-                                  ) : (
-                                    <div className="min-w-[140px]">
-                                      <p className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                                        Variant
-                                      </p>
-                                      <p className="font-medium">{variant.title || 'Default'}</p>
-                                    </div>
-                                  )
-                                ) : (
-                                  // Manual/edit mode: display color, size, type directly
-                                  <>
-                                    {variant.color && (
-                                      <div className="min-w-[140px]">
-                                        <p className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                                          Color
-                                        </p>
-                                        <p className="font-medium">{variant.color}</p>
-                                      </div>
-                                    )}
-                                    {variant.size && (
-                                      <div className="min-w-[140px]">
-                                        <p className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                                          Size
-                                        </p>
-                                        <p className="font-medium">{variant.size}</p>
-                                      </div>
-                                    )}
-                                    {variant.type && (
-                                      <div className="min-w-[140px]">
-                                        <p className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                                          Type
-                                        </p>
-                                        <p className="font-medium">{variant.type}</p>
-                                      </div>
-                                    )}
-                                    {!variant.color && !variant.size && !variant.type && (
-                                      <div className="min-w-[140px]">
-                                        <p className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                                          Variant
-                                        </p>
-                                        <p className="font-medium">Default</p>
-                                      </div>
-                                    )}
-                                  </>
-                                )}
-                                <div className="min-w-[110px]">
-                                  <p className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                                    Price
-                                  </p>
-                                  <p className="font-medium">
-                                    ${Number(variant.price || variant.priceOverride || 0).toFixed(2)}
-                                  </p>
+                            <div className="flex items-center justify-between gap-3 px-4 py-3">
+                              <div className="flex items-center gap-3">
+                                <input
+                                  id={`variant-${variantId}`}
+                                  type="checkbox"
+                                  checked={selectedVariants.includes(variantId)}
+                                  onChange={() => handleVariantToggle(variantId)}
+                                  className="h-4 w-4 rounded border-zinc-300 text-emerald-500 focus:ring-emerald-400"
+                                />
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    id={`default-variant-${variantId}`}
+                                    type="radio"
+                                    name="defaultVariant"
+                                    checked={defaultVariantId === variantId}
+                                    onChange={() => setDefaultVariantId(variantId)}
+                                    disabled={!isSelected}
+                                    className="h-4 w-4 border-zinc-300 text-emerald-500 focus:ring-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title={isSelected ? 'Set as default variant' : 'Select variant first'}
+                                  />
+                                  {defaultVariantId === variantId && (
+                                    <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400" title="Default variant">
+                                      Default
+                                    </span>
+                                  )}
                                 </div>
-                                <div className="min-w-[110px]">
-                                  <p className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                                    Stock
-                                  </p>
-                                  <p className={`font-medium ${isOutOfStock ? 'text-red-500 dark:text-red-400' : ''}`}>
-                                    {stock}
-                                  </p>
-                                </div>
-                                <div className="min-w-[160px]">
-                                  <p className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                                    SKU
-                                  </p>
-                                  <p className="font-medium break-words">{variant.sku || '-'}</p>
-                                </div>
+                                <label htmlFor={`variant-${variantId}`} className="flex flex-col text-sm">
+                                  <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                                    {variant.title || variant.name || variant.selectedOptions?.map((opt) => opt.value).join(' / ') || 'Unnamed variant'}
+                                  </span>
+                                  <span className="flex flex-wrap gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                                    {selectedAttributeLabels.map((attr) => (
+                                      <span key={`${variantId}-${attr.label}`} className="rounded-full bg-zinc-100 px-2 py-0.5 dark:bg-zinc-800">
+                                        {attr.value || '—'}
+                                      </span>
+                                    ))}
+                                  </span>
+                                </label>
                               </div>
                               <div className="flex items-center gap-3">
                                 {previewImage && (
@@ -1522,37 +1744,21 @@ export default function ProductModal({ mode = 'shopify', shopifyItem, existingPr
                               </div>
                             </div>
 
-                             {isExpanded && (() => {
-                               const variantInstance = availableVariants.find((v) => (v.id || v.shopifyId) === variantId);
-                               const sameGroupVariants = getSameColorVariantIds(variantId);
-                               const groupKey = getVariantGroupKey(variantInstance);
-                               let displayGroup = 'this variant';
-                               if (mode === 'shopify') {
-                                 const { color: colorLabel } = getVariantAttributes(variantInstance);
-                                 displayGroup = colorLabel || variantInstance?.title?.split(' / ')[0] || 'this color';
-                               } else {
-                                 if (variantInstance?.color) {
-                                   displayGroup = variantInstance.color;
-                                 } else if (variantInstance?.type) {
-                                   displayGroup = variantInstance.type;
-                                 }
-                               }
-
-                               return (
-                                 <div className="border-t border-zinc-200 bg-white/70 px-3 py-3 dark:border-zinc-700 dark:bg-zinc-900/50">
-                                   <div className="mb-2 flex items-center justify-between">
-                                     <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                                       Variant Photos ({selectedVariantImages.length} selected)
-                                     </p>
-                                     {sameGroupVariants.length > 1 && (
-                                       <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                                         Applies to all {displayGroup} sizes
-                                       </p>
-                                     )}
-                                   </div>
+                            {isExpanded && (
+                              <div className="border-t border-zinc-200 bg-white/70 px-3 py-3 dark:border-zinc-700 dark:bg-zinc-900/50">
+                                <div className="mb-2 flex items-center justify-between">
+                                  <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                                    Variant Photos ({groupSelectedImages.length} selected)
+                                  </p>
+                                  {sameGroupVariants.length > 1 && (
+                                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                                      Applies to all {displayGroup} sizes
+                                    </p>
+                                  )}
+                                </div>
                                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-5">
                                   {availableVariantImages.map((imageUrl, idx) => {
-                                    const isSelectedImage = selectedVariantImages.includes(imageUrl);
+                                    const isSelectedImage = groupSelectedImages.includes(imageUrl);
                                     return (
                                       <button
                                         key={`${variantId}-image-${idx}`}
@@ -1582,14 +1788,13 @@ export default function ProductModal({ mode = 'shopify', shopifyItem, existingPr
                                     );
                                   })}
                                 </div>
-                                {selectedVariantImages.length === 0 && (
+                                {groupSelectedImages.length === 0 && (
                                   <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
                                     No images selected for this variant. The product main images will be used if you leave this empty.
                                   </p>
                                 )}
                               </div>
-                              );
-                            })()}
+                            )}
                           </div>
                         );
                       })}
@@ -1609,6 +1814,48 @@ export default function ProductModal({ mode = 'shopify', shopifyItem, existingPr
                   <div className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm transition focus-within:border-emerald-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:focus-within:border-emerald-500">
                     <CategorySelector value={categoryId} onChange={setCategoryId} />
                   </div>
+                </div>
+
+                {/* Storefront Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                    Assign to Storefronts *
+                  </label>
+                  {availableWebsites.length === 1 ? (
+                    <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                      {availableWebsites[0]}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex flex-wrap gap-2">
+                        {availableWebsites.map((storefront) => {
+                          const isSelected = storefrontSelections.includes(storefront);
+                          return (
+                            <button
+                              key={storefront}
+                              type="button"
+                              onClick={() => toggleStorefront(storefront)}
+                              className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
+                                isSelected
+                                  ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                  : 'border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:border-zinc-600'
+                              }`}
+                            >
+                              {storefront}
+                              {isSelected && (
+                                <svg className="ml-1.5 inline h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                        Select which storefronts this product should appear in. At least one must be selected.
+                      </p>
+                    </>
+                  )}
                 </div>
 
                 <div>

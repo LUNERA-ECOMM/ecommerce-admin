@@ -58,11 +58,38 @@ export default function ProductDetailPage({ category, product, variants, info = 
     return Array.from(variantsByGroup.keys()).filter((key) => key !== 'default' || variantsByGroup.size === 1);
   }, [variantsByGroup]);
 
+  // Find default variant if set
+  const defaultVariant = useMemo(() => {
+    if (!product.defaultVariantId || !hasVariants) return null;
+    return variants.find((v) => v.id === product.defaultVariantId);
+  }, [product.defaultVariantId, variants, hasVariants]);
+
+  // Initialize selected group and size from default variant
+  const getInitialGroup = () => {
+    if (defaultVariant) {
+      if (hasColors && defaultVariant.color) {
+        return defaultVariant.color;
+      } else if (hasTypes && defaultVariant.type) {
+        return defaultVariant.type;
+      }
+    }
+    return availableGroups.length > 0 ? availableGroups[0] : null;
+  };
+
+  const getInitialSize = (group) => {
+    if (defaultVariant && group) {
+      const groupVariants = variantsByGroup.get(group) || [];
+      const defaultInGroup = groupVariants.find((v) => v.id === defaultVariant.id);
+      if (defaultInGroup && defaultInGroup.size) {
+        return defaultInGroup.size;
+      }
+    }
+    return null;
+  };
+
   // State: selected group (color or type) first, then size within that group
-  const [selectedGroup, setSelectedGroup] = useState(
-    availableGroups.length > 0 ? availableGroups[0] : null
-  );
-  const [selectedSize, setSelectedSize] = useState(null);
+  const [selectedGroup, setSelectedGroup] = useState(getInitialGroup);
+  const [selectedSize, setSelectedSize] = useState(() => getInitialSize(getInitialGroup()));
 
   // Get variants for selected group
   const groupVariants = useMemo(() => {
@@ -70,23 +97,58 @@ export default function ProductDetailPage({ category, product, variants, info = 
     return variantsByGroup.get(selectedGroup) || [];
   }, [selectedGroup, variantsByGroup]);
 
-  // Get available sizes for selected group
+  // Get available sizes for selected group - simple and straightforward
   const availableSizes = useMemo(() => {
-    return groupVariants
-      .map((v) => v.size)
-      .filter(Boolean)
-      .filter((size, index, arr) => arr.indexOf(size) === index)
-      .sort();
-  }, [groupVariants]);
+    if (!selectedGroup) return [];
+    
+    // Get unique sizes from variants in the selected group
+    const sizeSet = new Set();
+    groupVariants.forEach((v) => {
+      if (v.size) {
+        sizeSet.add(v.size);
+      }
+    });
+    
+    // Sort sizes in standard order: XS, S, M, L, XL, XXL, etc.
+    const sizeOrder = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'ONE SIZE', 'ONE-SIZE'];
+    const sizes = Array.from(sizeSet);
+    
+    return sizes.sort((a, b) => {
+      const aUpper = a.toUpperCase().trim();
+      const bUpper = b.toUpperCase().trim();
+      
+      const aIndex = sizeOrder.findIndex((order) => aUpper === order || aUpper.includes(order));
+      const bIndex = sizeOrder.findIndex((order) => bUpper === order || bUpper.includes(order));
+      
+      if (aIndex !== -1 && bIndex !== -1) {
+        return aIndex - bIndex;
+      }
+      if (aIndex !== -1) return -1;
+      if (bIndex !== -1) return 1;
+      
+      const aNum = parseFloat(aUpper);
+      const bNum = parseFloat(bUpper);
+      const aIsNum = !Number.isNaN(aNum);
+      const bIsNum = !Number.isNaN(bNum);
+      if (aIsNum && bIsNum) {
+        return aNum - bNum;
+      }
+      if (aIsNum) return -1;
+      if (bIsNum) return 1;
+      return a.localeCompare(b);
+    });
+  }, [selectedGroup, groupVariants]);
 
-  // Auto-select first size when group changes
+  // Simple: when group changes, reset size to first available
   useEffect(() => {
-    if (availableSizes.length > 0) {
-      // Reset to first available size when group changes
-      setSelectedSize(availableSizes[0]);
-    } else {
+    if (!selectedGroup || availableSizes.length === 0) {
       setSelectedSize(null);
+      return;
     }
+    
+    // Always select first available size when group changes
+    // This is simpler and more predictable
+    setSelectedSize(availableSizes[0]);
   }, [selectedGroup, availableSizes]);
 
   useEffect(() => {
@@ -95,21 +157,17 @@ export default function ProductDetailPage({ category, product, variants, info = 
 
   // Find selected variant based on group (color/type) + size
   const selectedVariant = useMemo(() => {
-    if (!selectedGroup || !selectedSize) {
-      // If no size selected, return first variant of selected group
-      return groupVariants[0] || null;
+    if (!selectedGroup) return null;
+    
+    // If size is selected, find variant with that size
+    if (selectedSize) {
+      const variant = groupVariants.find((v) => v.size === selectedSize);
+      return variant || groupVariants[0] || null;
     }
-    return (
-      groupVariants.find((v) => {
-        if (hasColors) {
-          return v.size === selectedSize && v.color === selectedGroup;
-        } else if (hasTypes) {
-          return v.size === selectedSize && v.type === selectedGroup;
-        }
-        return v.size === selectedSize;
-      }) || groupVariants[0] || null
-    );
-  }, [selectedGroup, selectedSize, groupVariants, hasColors, hasTypes]);
+    
+    // Otherwise, return first variant of selected group
+    return groupVariants[0] || null;
+  }, [selectedGroup, selectedSize, groupVariants]);
 
   const displayedPrice = selectedVariant?.priceOverride ?? product.basePrice ?? 0;
 
@@ -123,32 +181,56 @@ export default function ProductDetailPage({ category, product, variants, info = 
 
     // Collect all images from variants of the selected group
     // Support both `images` (array) and `image` (string) for backward compatibility
-    const allGroupVariantImages = [];
+    // Prioritize the selected variant's images first
+    const selectedVariantImages = [];
+    const otherGroupVariantImages = [];
+    
     for (const variant of groupVariants) {
+      let variantImages = [];
       if (Array.isArray(variant.images) && variant.images.length > 0) {
-        // Use images array if available
-        allGroupVariantImages.push(...variant.images.filter(Boolean));
+        variantImages = variant.images.filter(Boolean);
       } else if (variant.image) {
-        // Backward compatibility: single image field
-        allGroupVariantImages.push(variant.image);
+        variantImages = [variant.image];
+      }
+      
+      // If this is the selected variant, prioritize its images
+      if (selectedVariant && variant.id === selectedVariant.id) {
+        selectedVariantImages.push(...variantImages);
+      } else {
+        otherGroupVariantImages.push(...variantImages);
       }
     }
 
-    // Remove duplicates from variant images while preserving order
-    const uniqueVariantImages = allGroupVariantImages.filter(
-      (img, index, arr) => arr.indexOf(img) === index
-    );
-
-    // Combine: variant images first, then product images (excluding duplicates)
-    const combined = [...uniqueVariantImages];
-    mainProductImages.forEach((img) => {
-      if (!combined.includes(img)) {
+    // Remove duplicates while preserving order: selected variant images first, then other variant images, then main images
+    const seen = new Set();
+    const combined = [];
+    
+    // Add selected variant images first (these should include the main variant photo)
+    selectedVariantImages.forEach((img) => {
+      if (img && !seen.has(img)) {
         combined.push(img);
+        seen.add(img);
+      }
+    });
+    
+    // Then add other variant images
+    otherGroupVariantImages.forEach((img) => {
+      if (img && !seen.has(img)) {
+        combined.push(img);
+        seen.add(img);
+      }
+    });
+    
+    // Finally add main product images
+    mainProductImages.forEach((img) => {
+      if (img && !seen.has(img)) {
+        combined.push(img);
+        seen.add(img);
       }
     });
 
     return combined.length > 0 ? combined : mainProductImages;
-  }, [selectedGroup, groupVariants, product.images, hasVariants]);
+  }, [selectedGroup, groupVariants, product.images, hasVariants, selectedVariant]);
 
   const [activeImage, setActiveImage] = useState(null);
 
@@ -382,10 +464,7 @@ export default function ProductDetailPage({ category, product, variants, info = 
                         <button
                           key={group}
                           type="button"
-                          onClick={() => {
-                            setSelectedGroup(group);
-                            setSelectedSize(null); // Reset size when group changes
-                          }}
+                          onClick={() => setSelectedGroup(group)}
                           className={`relative flex items-center gap-2 rounded-xl border-2 px-4 py-2 transition ${
                             isSelected
                               ? 'border-primary bg-white shadow-md'
@@ -415,34 +494,27 @@ export default function ProductDetailPage({ category, product, variants, info = 
                   </h2>
                   <div className="grid grid-cols-4 gap-3">
                     {availableSizes.map((size) => {
-                      const isSelected = selectedSize === size;
-                      const sizeVariant = groupVariants.find((v) => {
-                        if (hasColors) {
-                          return v.size === size && v.color === selectedGroup;
-                        } else if (hasTypes) {
-                          return v.size === size && v.type === selectedGroup;
-                        }
-                        return v.size === size;
-                      });
-                      const isOutOfStock = !sizeVariant || (sizeVariant.stock ?? 0) === 0;
-                      return (
-                        <button
-                          key={size}
-                          type="button"
-                          onClick={() => setSelectedSize(size)}
-                          disabled={isOutOfStock}
-                          className={`flex flex-col items-center justify-center rounded-xl border-2 px-3 py-2 text-sm font-semibold transition ${
-                            isSelected
-                              ? 'border-primary bg-white shadow-md text-slate-800'
-                              : isOutOfStock
-                              ? 'border-secondary/30 bg-white/30 text-slate-400 cursor-not-allowed'
-                              : 'border-secondary/70 bg-white/60 text-slate-700 hover:border-primary/30'
-                          }`}
-                        >
-                          <span>{size}</span>
-                        </button>
-                      );
-                    })}
+                        const isSelected = selectedSize === size;
+                        const sizeVariant = groupVariants.find((v) => v.size === size);
+                        const isOutOfStock = !sizeVariant || (sizeVariant.stock ?? 0) === 0;
+                        return (
+                          <button
+                            key={size}
+                            type="button"
+                            onClick={() => setSelectedSize(size)}
+                            disabled={isOutOfStock}
+                            className={`flex flex-col items-center justify-center rounded-xl border-2 px-3 py-2 text-sm font-semibold transition ${
+                              isSelected
+                                ? 'border-primary bg-white shadow-md text-slate-800'
+                                : isOutOfStock
+                                ? 'border-secondary/30 bg-white/30 text-slate-400 cursor-not-allowed'
+                                : 'border-secondary/70 bg-white/60 text-slate-700 hover:border-primary/30'
+                            }`}
+                          >
+                            <span>{size}</span>
+                          </button>
+                        );
+                      })}
                   </div>
                 </div>
               )}

@@ -1,0 +1,136 @@
+import { NextResponse } from 'next/server';
+import crypto from 'crypto';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+
+// Initialize Firebase Admin SDK
+function getAdminDb() {
+  if (getApps().length > 0) {
+    return getFirestore();
+  }
+
+  if (
+    process.env.FIREBASE_PROJECT_ID &&
+    process.env.FIREBASE_CLIENT_EMAIL &&
+    process.env.FIREBASE_PRIVATE_KEY
+  ) {
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n');
+    initializeApp({
+      credential: cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey,
+      }),
+    });
+  } else {
+    throw new Error('Firebase Admin credentials not configured');
+  }
+
+  return getFirestore();
+}
+
+/**
+ * Verify Shopify webhook HMAC signature
+ */
+function verifyShopifyWebhook(rawBody, hmacHeader) {
+  const secret = process.env.SHOPIFY_WEBHOOK_SECRET;
+  
+  if (!secret) {
+    console.error('SHOPIFY_WEBHOOK_SECRET not configured in environment variables');
+    return false;
+  }
+
+  const digest = crypto
+    .createHmac('sha256', secret)
+    .update(rawBody, 'utf8')
+    .digest('base64');
+
+  const isValid = digest === hmacHeader;
+  
+  if (!isValid) {
+    console.error('Webhook signature verification failed. Make sure SHOPIFY_WEBHOOK_SECRET matches Shopify webhook secret.');
+  }
+
+  return isValid;
+}
+
+/**
+ * Update order fulfillment information
+ */
+async function updateOrderFulfillment(db, fulfillment, orderId) {
+  const ordersCollection = db.collection('orders');
+  
+  const orderSnapshot = await ordersCollection
+    .where('shopifyOrderId', '==', orderId.toString())
+    .limit(1)
+    .get();
+
+  if (!orderSnapshot.empty) {
+    const orderDoc = orderSnapshot.docs[0];
+    
+    const fulfillmentData = {
+      shippedAt: fulfillment.created_at ? new Date(fulfillment.created_at) : null,
+      trackingNumber: fulfillment.tracking_number || null,
+      trackingCompany: fulfillment.tracking_company || null,
+      trackingUrl: fulfillment.tracking_url || null,
+      status: fulfillment.status || 'success',
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+
+    await orderDoc.ref.update({
+      fulfillment: fulfillmentData,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    
+    console.log(`Updated fulfillment for order: ${orderDoc.id} (Shopify order ${orderId})`);
+    return orderDoc.id;
+  } else {
+    console.log(`Order ${orderId} not found in Firestore`);
+    return null;
+  }
+}
+
+export async function POST(request) {
+  try {
+    const rawBody = await request.text();
+    const hmacHeader = request.headers.get('x-shopify-hmac-sha256');
+
+    if (!hmacHeader) {
+      console.error('Missing x-shopify-hmac-sha256 header');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!verifyShopifyWebhook(rawBody, hmacHeader)) {
+      console.error('Invalid webhook signature');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const payload = JSON.parse(rawBody);
+    const fulfillment = payload;
+    const orderId = fulfillment.order_id;
+
+    console.log(`Received fulfillment update webhook: fulfillment_id=${fulfillment.id}, order_id=${orderId}`);
+
+    const db = getAdminDb();
+    const firestoreOrderId = await updateOrderFulfillment(db, fulfillment, orderId);
+
+    return NextResponse.json({ 
+      ok: true, 
+      fulfillmentId: fulfillment.id,
+      shopifyOrderId: orderId,
+      orderId: firestoreOrderId,
+      trackingNumber: fulfillment.tracking_number || null,
+    });
+  } catch (error) {
+    console.error('Fulfillment update webhook processing error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error', message: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+export async function GET() {
+  return NextResponse.json({ message: 'Shopify fulfillment update webhook endpoint is active' });
+}
+

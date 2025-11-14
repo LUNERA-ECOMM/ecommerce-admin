@@ -1,13 +1,15 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
+import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 import { getFirebaseDb } from '@/lib/firebase';
-import { getStoreCollectionPath } from '@/lib/store-collections';
+import { getCollectionPath } from '@/lib/store-collections';
+import { useWebsite } from '@/lib/website-context';
 import CategoryModalButton from '@/components/admin/CreateCategoryButton';
 
 export default function CategorySelector({ value, onChange }) {
   const db = getFirebaseDb();
+  const { selectedWebsite } = useWebsite();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -18,13 +20,15 @@ export default function CategorySelector({ value, onChange }) {
     }
 
     const categoriesQuery = query(
-      collection(db, ...getStoreCollectionPath('categories')),
+      collection(db, ...getCollectionPath('categories', selectedWebsite)),
       orderBy('name', 'asc')
     );
     const unsubscribe = onSnapshot(
       categoriesQuery,
       (snapshot) => {
-        const next = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        const next = snapshot.docs
+          .map((doc) => ({ id: doc.id, ...doc.data() }))
+          .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         setCategories(next);
         setLoading(false);
       },
@@ -36,7 +40,7 @@ export default function CategorySelector({ value, onChange }) {
     );
 
     return () => unsubscribe();
-  }, [db]);
+  }, [db, selectedWebsite]);
 
   const activeCategories = useMemo(() => categories.filter((category) => category.active !== false), [categories]);
 

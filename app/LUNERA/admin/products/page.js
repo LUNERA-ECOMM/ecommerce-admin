@@ -3,11 +3,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { collection, doc, getDocs, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, onSnapshot, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { getFirebaseDb } from '@/lib/firebase';
 import Toast from '@/components/admin/Toast';
 import ProductModal from '@/components/admin/ProductModal';
-import { getStoreCollectionPath, getStoreDocPath } from '@/lib/store-collections';
+import { getCollectionPath, getDocumentPath } from '@/lib/store-collections';
 import { useWebsite } from '@/lib/website-context';
 
 export default function ProductsListPage() {
@@ -23,6 +23,7 @@ export default function ProductsListPage() {
   const [activeFilter, setActiveFilter] = useState('all'); // 'all', 'active', 'inactive'
   const [lowStockThreshold, setLowStockThreshold] = useState(10);
   const [editingProduct, setEditingProduct] = useState(null);
+  const [creatingProduct, setCreatingProduct] = useState(false);
 
   // Fetch categories
   useEffect(() => {
@@ -32,13 +33,14 @@ export default function ProductsListPage() {
     }
 
     const categoriesQuery = query(
-      collection(db, ...getStoreCollectionPath('categories', selectedWebsite)),
-      orderBy('name', 'asc')
+      collection(db, ...getCollectionPath('categories', selectedWebsite))
     );
     const unsubscribeCategories = onSnapshot(
       categoriesQuery,
       (snapshot) => {
-        const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        const data = snapshot.docs
+          .map((doc) => ({ id: doc.id, ...doc.data() }))
+          .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         setCategories(data);
       },
       (error) => {
@@ -47,7 +49,7 @@ export default function ProductsListPage() {
     );
 
     return () => unsubscribeCategories();
-  }, [db]);
+  }, [db, selectedWebsite]);
 
   // Fetch products with variants
   useEffect(() => {
@@ -57,8 +59,7 @@ export default function ProductsListPage() {
     }
 
     const productsQuery = query(
-      collection(db, ...getStoreCollectionPath('products', selectedWebsite)),
-      orderBy('createdAt', 'desc')
+      collection(db, ...getCollectionPath('products', selectedWebsite))
     );
     const unsubscribeProducts = onSnapshot(
       productsQuery,
@@ -70,7 +71,7 @@ export default function ProductsListPage() {
           productsData.map(async (product) => {
             try {
               const variantsSnapshot = await getDocs(
-                collection(db, ...getStoreDocPath('products', product.id, selectedWebsite), 'variants')
+                collection(db, ...getDocumentPath('products', product.id, selectedWebsite), 'variants')
               );
               const variants = variantsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
               const totalStock = variants.reduce((sum, variant) => sum + (variant.stock || 0), 0);
@@ -83,7 +84,13 @@ export default function ProductsListPage() {
           })
         );
 
-        setProducts(productsWithStock);
+        setProducts(
+          productsWithStock.sort((a, b) => {
+            const aCreated = a.createdAt?.toMillis?.() || (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
+            const bCreated = b.createdAt?.toMillis?.() || (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
+            return bCreated - aCreated;
+          })
+        );
         setLoading(false);
       },
       (error) => {
@@ -103,6 +110,7 @@ export default function ProductsListPage() {
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         const matchesSearch =
+          product.displayName?.toLowerCase().includes(query) ||
           product.name?.toLowerCase().includes(query) ||
           product.slug?.toLowerCase().includes(query) ||
           product.description?.toLowerCase().includes(query);
@@ -110,7 +118,7 @@ export default function ProductsListPage() {
       }
 
       // Category filter
-      if (selectedCategory && product.categoryId !== selectedCategory) {
+      if (selectedCategory && !(product.categoryIds || []).includes(selectedCategory)) {
         return false;
       }
 
@@ -132,11 +140,12 @@ export default function ProductsListPage() {
     }
 
     try {
-      await updateDoc(doc(db, ...getStoreDocPath('products', product.id, selectedWebsite)), {
+      await updateDoc(doc(db, ...getDocumentPath('products', product.id, selectedWebsite)), {
         active: product.active === false ? true : false,
         updatedAt: serverTimestamp(),
       });
-      setMessage({ type: 'success', text: `Product "${product.name}" ${product.active === false ? 'activated' : 'deactivated'}.` });
+      const label = product.displayName || product.name || 'product';
+      setMessage({ type: 'success', text: `Product "${label}" ${product.active === false ? 'activated' : 'deactivated'}.` });
     } catch (error) {
       console.error('Failed to update product', error);
       setMessage({ type: 'error', text: 'Failed to update product. Check console for details.' });
@@ -148,11 +157,13 @@ export default function ProductsListPage() {
     return category?.name || '—';
   };
 
+  const storefrontBasePath = `/${selectedWebsite}/admin`;
+
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 px-6 py-16">
       <header className="space-y-2">
         <button
-          onClick={() => router.push('/LUNERA/admin/overview')}
+          onClick={() => router.push(`${storefrontBasePath}/overview`)}
           className="text-sm font-medium text-emerald-600 transition hover:text-emerald-500"
         >
           ← Back to admin
@@ -166,17 +177,17 @@ export default function ProductsListPage() {
           </div>
           <div className="flex items-center gap-3">
             <Link
-              href="/LUNERA/admin/plans/products"
+              href={`${storefrontBasePath}/plans/products`}
               className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-600 transition hover:border-emerald-200 hover:bg-emerald-50/50"
             >
               View plan
             </Link>
-            <Link
-              href="/LUNERA/admin/products/new"
+            <button
+              onClick={() => setCreatingProduct(true)}
               className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
             >
               + New product
-            </Link>
+            </button>
           </div>
         </div>
       </header>
@@ -302,17 +313,23 @@ export default function ProductsListPage() {
                           )}
                         </div>
                         <div className="flex flex-col">
-                          <Link
-                            href={`/LUNERA/admin/products/${product.id}/edit`}
-                            className="font-medium text-zinc-800 hover:text-emerald-600 transition"
+                          <button
+                            type="button"
+                            onClick={() => setEditingProduct(product)}
+                            className="text-left font-medium text-zinc-800 transition hover:text-emerald-600"
                           >
-                            {product.name}
-                          </Link>
+                            {product.displayName || product.name || 'Untitled product'}
+                          </button>
                           <span className="text-xs text-zinc-400">{product.slug}</span>
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-zinc-600">{getCategoryName(product.categoryId)}</td>
+                    <td className="px-4 py-3 text-zinc-600">
+                      {(product.categoryIds || [])
+                        .map((id) => getCategoryName(id))
+                        .filter(Boolean)
+                        .join(', ') || '—'}
+                    </td>
                     <td className="px-4 py-3">
                       <span className="font-medium text-zinc-800">€{product.basePrice?.toFixed(2) || '0.00'}</span>
                     </td>
@@ -377,6 +394,18 @@ export default function ProductsListPage() {
           onSaved={() => {
             setEditingProduct(null);
             setMessage({ type: 'success', text: 'Product updated successfully!' });
+          }}
+        />
+      )}
+
+      {/* Product Create Modal */}
+      {creatingProduct && (
+        <ProductModal
+          mode="manual"
+          onClose={() => setCreatingProduct(false)}
+          onSaved={() => {
+            setCreatingProduct(false);
+            setMessage({ type: 'success', text: 'Product created successfully!' });
           }}
         />
       )}

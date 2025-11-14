@@ -2,14 +2,16 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { collection, onSnapshot, query } from 'firebase/firestore';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { getFirebaseDb } from '@/lib/firebase';
-import { getStoreCollectionPath } from '@/lib/store-collections';
+import { getCollectionPath } from '@/lib/store-collections';
 import Toast from '@/components/admin/Toast';
+import { useWebsite } from '@/lib/website-context';
 
 export default function AnalyticsPage() {
   const router = useRouter();
   const db = getFirebaseDb();
+  const { selectedWebsite } = useWebsite();
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -22,7 +24,10 @@ export default function AnalyticsPage() {
       return undefined;
     }
 
-    const categoriesQuery = query(collection(db, ...getStoreCollectionPath('categories')));
+    const categoriesQuery = query(
+      collection(db, ...getCollectionPath('categories')),
+      where('storefronts', 'array-contains', selectedWebsite)
+    );
     const unsubscribeCategories = onSnapshot(
       categoriesQuery,
       (snapshot) => {
@@ -47,13 +52,16 @@ export default function AnalyticsPage() {
     );
 
     return () => unsubscribeCategories();
-  }, [db]);
+  }, [db, selectedWebsite]);
 
   // Fetch products and sort client-side
   useEffect(() => {
     if (!db) return undefined;
 
-    const productsQuery = query(collection(db, ...getStoreCollectionPath('products')));
+    const productsQuery = query(
+      collection(db, ...getCollectionPath('products')),
+      where('storefronts', 'array-contains', selectedWebsite)
+    );
     const unsubscribeProducts = onSnapshot(
       productsQuery,
       (snapshot) => {
@@ -77,7 +85,7 @@ export default function AnalyticsPage() {
     );
 
     return () => unsubscribeProducts();
-  }, [db]);
+  }, [db, selectedWebsite]);
 
   const topCategories = useMemo(() => categories.slice(0, 10), [categories]);
   const topProducts = useMemo(() => products.slice(0, 10), [products]);
@@ -95,7 +103,7 @@ export default function AnalyticsPage() {
     <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 px-6 py-16">
       <header className="space-y-2">
         <button
-          onClick={() => router.push('/LUNERA/admin/overview')}
+          onClick={() => router.push(`/${selectedWebsite}/admin/overview`)}
           className="text-sm font-medium text-emerald-600 transition hover:text-emerald-500"
         >
           ← Back to admin

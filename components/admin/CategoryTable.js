@@ -13,8 +13,9 @@ export default function CategoryTable({
   getCategoryProducts,
   onToggleActive,
   onUpdatePreviewProducts,
-  db,
   setMessage,
+  storefrontBasePath,
+  onCreateProduct,
 }) {
 
   if (loading) {
@@ -154,7 +155,7 @@ export default function CategoryTable({
                           Products ({categoryProducts.length})
                         </h3>
                         <Link
-                          href={`/LUNERA/admin/products/new?categoryId=${category.id}`}
+                          href={`${storefrontBasePath}/products/new?categoryId=${category.id}`}
                           className="rounded-full border border-emerald-200 bg-emerald-50/50 px-3 py-1.5 text-xs font-medium text-emerald-600 transition hover:border-emerald-300 hover:bg-emerald-50"
                         >
                           + Add product
@@ -163,12 +164,21 @@ export default function CategoryTable({
                       {categoryProducts.length === 0 ? (
                         <div className="flex items-center justify-between">
                           <p className="text-sm text-zinc-400">No products in this category.</p>
-                          <Link
-                            href={`/LUNERA/admin/products/new?categoryId=${category.id}`}
-                            className="rounded-full border border-emerald-200 bg-emerald-50/50 px-3 py-1.5 text-xs font-medium text-emerald-600 transition hover:border-emerald-300 hover:bg-emerald-50"
-                          >
-                            + Add product
-                          </Link>
+                          {onCreateProduct ? (
+                            <button
+                              onClick={() => onCreateProduct(category.id)}
+                              className="rounded-full border border-emerald-200 bg-emerald-50/50 px-3 py-1.5 text-xs font-medium text-emerald-600 transition hover:border-emerald-300 hover:bg-emerald-50"
+                            >
+                              + Add product
+                            </button>
+                          ) : (
+                            <Link
+                              href={`${storefrontBasePath}/products/new?categoryId=${category.id}`}
+                              className="rounded-full border border-emerald-200 bg-emerald-50/50 px-3 py-1.5 text-xs font-medium text-emerald-600 transition hover:border-emerald-300 hover:bg-emerald-50"
+                            >
+                              + Add product
+                            </Link>
+                          )}
                         </div>
                       ) : (
                         <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">

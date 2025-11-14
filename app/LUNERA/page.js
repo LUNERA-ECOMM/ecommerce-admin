@@ -15,8 +15,8 @@ export default async function Home() {
 
   try {
     [categories, products, info] = await Promise.all([
-      getServerSideCategories(),
-      getServerSideProducts(),
+      getServerSideCategories('LUNERA'),
+      getServerSideProducts('LUNERA'),
       getServerSideInfo(),
     ]);
   } catch (error) {

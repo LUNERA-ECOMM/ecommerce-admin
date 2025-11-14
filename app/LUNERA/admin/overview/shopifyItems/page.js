@@ -1,13 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { collection, getDocs, orderBy, query } from 'firebase/firestore';
 import { getFirebaseDb } from '@/lib/firebase';
+import { getCollectionPath } from '@/lib/store-collections';
 import ShopifyItemModal from '@/components/admin/ShopifyItemModal';
+import { useWebsite } from '@/lib/website-context';
 
 export default function ShopifyItemsPage() {
   const db = getFirebaseDb();
+  const { selectedWebsite } = useWebsite();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState(null);
@@ -27,7 +30,7 @@ export default function ShopifyItemsPage() {
 
     try {
       const itemsQuery = query(
-        collection(db, 'LUNERA', 'shopify', 'items'),
+        collection(db, ...getCollectionPath('shopifyItems')),
         orderBy('createdAt', 'desc')
       );
       const snapshot = await getDocs(itemsQuery);
@@ -44,6 +47,9 @@ export default function ShopifyItemsPage() {
         return {
           id: doc.id,
           ...data,
+          processedForStorefront: Array.isArray(data.processedStorefronts)
+            ? data.processedStorefronts.includes(selectedWebsite)
+            : false,
         };
       });
       console.log(`✅ Loaded ${itemsData.length} Shopify items total`);
@@ -55,13 +61,19 @@ export default function ShopifyItemsPage() {
     }
   };
 
-  const filteredItems = items.filter((item) =>
-    item.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.matchedCategorySlug?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredItems = useMemo(
+    () =>
+      items
+        .filter((item) =>
+          item.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          item.matchedCategorySlug?.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+        .filter((item) => !item.processedForStorefront),
+    [items, searchTerm]
   );
 
   const getStatusBadge = (item) => {
-    if (item.processed) {
+    if (item.processedForStorefront) {
       return (
         <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
           Processed
@@ -81,7 +93,7 @@ export default function ShopifyItemsPage() {
         <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <Link
-              href="/LUNERA/admin/overview"
+              href={`/${selectedWebsite}/admin/overview`}
               className="mb-2 inline-flex items-center gap-2 text-sm text-zinc-500 transition hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -156,6 +168,7 @@ export default function ShopifyItemsPage() {
 
         {selectedItem && (
           <ShopifyItemModal
+            key={selectedItem.id || 'shopify-modal'}
             item={selectedItem}
             onClose={() => setSelectedItem(null)}
             onSaved={() => {

@@ -3,14 +3,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { collection, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { getFirebaseDb } from '@/lib/firebase';
-import { getStoreCollectionPath } from '@/lib/store-collections';
+import { getCollectionPath, getDocumentPath } from '@/lib/store-collections';
 import Toast from '@/components/admin/Toast';
+import { useWebsite } from '@/lib/website-context';
 
 export default function PromotionsListPage() {
   const router = useRouter();
   const db = getFirebaseDb();
+  const { selectedWebsite } = useWebsite();
   const [promotions, setPromotions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState(null);
@@ -25,16 +27,22 @@ export default function PromotionsListPage() {
     }
 
     const promotionsQuery = query(
-      collection(db, ...getStoreCollectionPath('promotions')),
-      orderBy('createdAt', 'desc')
+      collection(db, ...getCollectionPath('promotions')),
+      where('storefronts', 'array-contains', selectedWebsite)
     );
     const unsubscribe = onSnapshot(
       promotionsQuery,
       (snapshot) => {
-        const data = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+        const data = snapshot.docs
+          .map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }))
+          .sort((a, b) => {
+            const aCreated = a.createdAt?.toMillis?.() || a.createdAt?.seconds || 0;
+            const bCreated = b.createdAt?.toMillis?.() || b.createdAt?.seconds || 0;
+            return bCreated - aCreated;
+          });
         setPromotions(data);
         setLoading(false);
       },
@@ -46,7 +54,7 @@ export default function PromotionsListPage() {
     );
 
     return () => unsubscribe();
-  }, [db]);
+  }, [db, selectedWebsite]);
 
   // Filter promotions by status and search
   const filteredPromotions = useMemo(() => {
@@ -108,7 +116,7 @@ export default function PromotionsListPage() {
     <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 px-6 py-16">
       <header className="space-y-2">
         <button
-          onClick={() => router.push('/LUNERA/admin/overview')}
+          onClick={() => router.push(`/${selectedWebsite}/admin/overview`)}
           className="text-sm font-medium text-emerald-600 transition hover:text-emerald-500"
         >
           ← Back to admin
@@ -121,7 +129,7 @@ export default function PromotionsListPage() {
             </p>
           </div>
           <Link
-            href="/LUNERA/admin/promotions/new"
+            href={`/${selectedWebsite}/admin/promotions/new`}
             className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
           >
             + New promotion
@@ -240,7 +248,7 @@ export default function PromotionsListPage() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <Link
-                        href={`/LUNERA/admin/promotions/${promo.id}/edit`}
+                        href={`/${selectedWebsite}/admin/promotions/${promo.id}/edit`}
                         className="rounded-full border border-zinc-200 px-3 py-1 text-xs font-medium text-zinc-600 transition hover:border-emerald-200 hover:bg-emerald-50/50"
                       >
                         Edit

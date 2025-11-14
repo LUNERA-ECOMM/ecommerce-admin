@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { addDoc, collection, doc, getDocs, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { getFirebaseDb } from '@/lib/firebase';
-import { getStoreCollectionPath, getStoreDocPath } from '@/lib/store-collections';
+import { getCollectionPath, getDocumentPath } from '@/lib/store-collections';
 
 export default function SupplierModalButton({
   mode = 'create',
@@ -79,7 +79,7 @@ export default function SupplierModalButton({
       if (mode === 'edit' && supplier) {
         // When editing, check if the new name conflicts with another supplier
         const nameQuery = query(
-          collection(db, ...getStoreCollectionPath('suppliers')),
+          collection(db, ...getCollectionPath('suppliers')),
           where('name', '==', trimmedName)
         );
         const nameSnapshot = await getDocs(nameQuery);
@@ -100,7 +100,7 @@ export default function SupplierModalButton({
           updatedAt: serverTimestamp(),
         };
 
-        await updateDoc(doc(db, ...getStoreDocPath('suppliers', supplier.id)), payload);
+        await updateDoc(doc(db, ...getDocumentPath('suppliers', supplier.id)), payload);
 
         if (onCompleted) {
           onCompleted({ id: supplier.id, ...supplier, ...payload });
@@ -108,7 +108,7 @@ export default function SupplierModalButton({
       } else {
         // When creating, check if supplier with same name already exists
         const nameQuery = query(
-          collection(db, ...getStoreCollectionPath('suppliers')),
+          collection(db, ...getCollectionPath('suppliers')),
           where('name', '==', trimmedName)
         );
         const nameSnapshot = await getDocs(nameQuery);
@@ -128,7 +128,7 @@ export default function SupplierModalButton({
           createdAt: serverTimestamp(),
         };
 
-        const docRef = await addDoc(collection(db, ...getStoreCollectionPath('suppliers')), payload);
+        const docRef = await addDoc(collection(db, ...getCollectionPath('suppliers')), payload);
         const createdSupplier = { id: docRef.id, ...payload };
         if (onCompleted) {
           onCompleted(createdSupplier);

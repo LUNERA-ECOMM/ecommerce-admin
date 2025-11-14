@@ -4,9 +4,10 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { addDoc, collection, getDocs, query, serverTimestamp, Timestamp, where } from 'firebase/firestore';
 import { getFirebaseDb } from '@/lib/firebase';
-import { getStoreCollectionPath } from '@/lib/store-collections';
+import { getCollectionPath } from '@/lib/store-collections';
 import Toast from '@/components/admin/Toast';
 import InfoIcon from '@/components/admin/InfoIcon';
+import { useWebsite } from '@/lib/website-context';
 
 const initialFormState = {
   code: '',
@@ -25,6 +26,7 @@ const initialFormState = {
 export default function NewPromotionPage() {
   const router = useRouter();
   const db = getFirebaseDb();
+  const { selectedWebsite } = useWebsite();
   const [form, setForm] = useState(initialFormState);
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
@@ -35,8 +37,14 @@ export default function NewPromotionPage() {
   useEffect(() => {
     if (!db) return;
 
-    const categoriesQuery = query(collection(db, ...getStoreCollectionPath('categories')));
-    const productsQuery = query(collection(db, ...getStoreCollectionPath('products')));
+    const categoriesQuery = query(
+      collection(db, ...getCollectionPath('categories')),
+      where('storefronts', 'array-contains', selectedWebsite)
+    );
+    const productsQuery = query(
+      collection(db, ...getCollectionPath('products')),
+      where('storefronts', 'array-contains', selectedWebsite)
+    );
 
     Promise.all([
       getDocs(categoriesQuery).then((snapshot) =>
@@ -53,7 +61,7 @@ export default function NewPromotionPage() {
       .catch((error) => {
         console.error('Failed to load categories/products', error);
       });
-  }, [db]);
+  }, [db, selectedWebsite]);
 
   const handleChange = (field) => (event) => {
     const value = event.target.value;
@@ -100,7 +108,8 @@ export default function NewPromotionPage() {
     if (db) {
       try {
         const codeQuery = query(
-          collection(db, ...getStoreCollectionPath('promotions')),
+          collection(db, ...getCollectionPath('promotions')),
+          where('storefronts', 'array-contains', selectedWebsite),
           where('code', '==', form.code.trim().toUpperCase())
         );
         const codeSnapshot = await getDocs(codeQuery);
@@ -129,13 +138,15 @@ export default function NewPromotionPage() {
         endDate: form.endDate ? Timestamp.fromDate(new Date(form.endDate)) : null,
         maxRedemptions: form.maxRedemptions ? parseInt(form.maxRedemptions, 10) : null,
         currentRedemptions: 0,
+        storefronts: [selectedWebsite],
         createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       };
 
-      await addDoc(collection(db, ...getStoreCollectionPath('promotions')), payload);
+      await addDoc(collection(db, ...getCollectionPath('promotions')), payload);
       setMessage({ type: 'success', text: 'Promotion created successfully.' });
       setTimeout(() => {
-        router.push('/LUNERA/admin/promotions');
+        router.push(`/${selectedWebsite}/admin/promotions`);
       }, 1500);
     } catch (error) {
       console.error('Error creating promotion', error);
@@ -159,7 +170,7 @@ export default function NewPromotionPage() {
     <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-8 px-6 py-16">
       <header className="space-y-2">
         <button
-          onClick={() => router.push('/LUNERA/admin/promotions')}
+          onClick={() => router.push(`/${selectedWebsite}/admin/promotions`)}
           className="text-sm font-medium text-emerald-600 transition hover:text-emerald-500"
         >
           ← Back to promotions
@@ -325,7 +336,7 @@ export default function NewPromotionPage() {
           </button>
           <button
             type="button"
-            onClick={() => router.push('/LUNERA/admin/promotions')}
+            onClick={() => router.push(`/${selectedWebsite}/admin/promotions`)}
             className="text-sm font-medium text-zinc-500 underline-offset-4 transition hover:text-zinc-700"
           >
             Cancel

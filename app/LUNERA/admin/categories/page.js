@@ -2,21 +2,26 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { collection, doc, getDocs, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
+import { collection, doc, getDocs, onSnapshot, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { getFirebaseDb } from '@/lib/firebase';
 import CategoryModalButton from '@/components/admin/CreateCategoryButton';
 import CategoryTable from '@/components/admin/CategoryTable';
 import Toast from '@/components/admin/Toast';
-import { getStoreCollectionPath, getStoreDocPath } from '@/lib/store-collections';
+import ProductModal from '@/components/admin/ProductModal';
+import { getCollectionPath, getDocumentPath } from '@/lib/store-collections';
+import { useWebsite } from '@/lib/website-context';
 
 export default function CategoriesAdminPage() {
   const router = useRouter();
   const db = getFirebaseDb();
+  const { selectedWebsite } = useWebsite();
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
   const [expandedCategories, setExpandedCategories] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState(null);
+  const [creatingProduct, setCreatingProduct] = useState(false);
+  const [productCategoryId, setProductCategoryId] = useState(null);
 
   const visibleCategories = useMemo(() => categories.filter((cat) => cat.active !== false), [categories]);
   const hiddenCategories = useMemo(() => categories.filter((cat) => cat.active === false), [categories]);
@@ -28,13 +33,15 @@ export default function CategoriesAdminPage() {
     }
 
     const categoriesQuery = query(
-      collection(db, ...getStoreCollectionPath('categories')),
-      orderBy('createdAt', 'desc')
+      collection(db, ...getCollectionPath('categories', selectedWebsite))
     );
     const unsubscribeCategories = onSnapshot(
       categoriesQuery,
       (snapshot) => {
-        const data = snapshot.docs.map((snapshotDoc) => ({ id: snapshotDoc.id, ...snapshotDoc.data() }));
+        const data = snapshot.docs
+          .map((snapshotDoc) => ({ id: snapshotDoc.id, ...snapshotDoc.data() }))
+          .sort((a, b) => (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0))
+          .reverse();
         setCategories(data);
         setLoading(false);
       },
@@ -47,7 +54,9 @@ export default function CategoriesAdminPage() {
 
     // Also fetch products to show in expandable sections
     // Filter active products client-side
-    const productsQuery = query(collection(db, ...getStoreCollectionPath('products')));
+    const productsQuery = query(
+      collection(db, ...getCollectionPath('products', selectedWebsite))
+    );
     const unsubscribeProducts = onSnapshot(
       productsQuery,
       async (snapshot) => {
@@ -60,7 +69,7 @@ export default function CategoriesAdminPage() {
           productsData.map(async (product) => {
             try {
               const variantsSnapshot = await getDocs(
-                collection(db, ...getStoreDocPath('products', product.id), 'variants')
+                collection(db, ...getDocumentPath('products', product.id, selectedWebsite), 'variants')
               );
               const variants = variantsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
               const totalStock = variants.reduce((sum, variant) => sum + (variant.stock || 0), 0);
@@ -84,7 +93,7 @@ export default function CategoriesAdminPage() {
       unsubscribeCategories();
       unsubscribeProducts();
     };
-  }, [db]);
+  }, [db, selectedWebsite]);
 
   const toggleExpanded = (categoryId) => {
     setExpandedCategories((prev) => {
@@ -99,7 +108,7 @@ export default function CategoriesAdminPage() {
   };
 
   const getCategoryProducts = (categoryId) => {
-    return products.filter((product) => product.categoryId === categoryId);
+    return products.filter((product) => (product.categoryIds || []).includes(categoryId));
   };
 
   const handleToggleActive = async (category) => {
@@ -108,7 +117,7 @@ export default function CategoriesAdminPage() {
     }
 
     try {
-      await updateDoc(doc(db, ...getStoreDocPath('categories', category.id)), {
+      await updateDoc(doc(db, ...getDocumentPath('categories', category.id)), {
         active: category.active === false ? true : false,
         updatedAt: serverTimestamp(),
       });
@@ -125,7 +134,7 @@ export default function CategoriesAdminPage() {
     }
 
     try {
-      await updateDoc(doc(db, ...getStoreDocPath('categories', categoryId)), {
+      await updateDoc(doc(db, ...getDocumentPath('categories', categoryId)), {
         previewProductIds: previewProductIds.slice(0, 4), // Max 4 products
         updatedAt: serverTimestamp(),
       });
@@ -140,7 +149,7 @@ export default function CategoriesAdminPage() {
     <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-8 px-6 py-16">
       <header className="space-y-2">
         <button
-          onClick={() => router.push('/LUNERA/admin/overview')}
+          onClick={() => router.push(`/${selectedWebsite}/admin/overview`)}
           className="text-sm font-medium text-emerald-600 transition hover:text-emerald-500"
         >
           ← Back to admin
@@ -173,8 +182,12 @@ export default function CategoriesAdminPage() {
             getCategoryProducts={getCategoryProducts}
             onToggleActive={handleToggleActive}
             onUpdatePreviewProducts={handleUpdatePreviewProducts}
-            db={db}
             setMessage={setMessage}
+            storefrontBasePath={`/${selectedWebsite}/admin`}
+            onCreateProduct={(categoryId) => {
+              setProductCategoryId(categoryId);
+              setCreatingProduct(true);
+            }}
           />
         </div>
       </section>
@@ -192,11 +205,32 @@ export default function CategoriesAdminPage() {
               getCategoryProducts={getCategoryProducts}
               onToggleActive={handleToggleActive}
               onUpdatePreviewProducts={handleUpdatePreviewProducts}
-              db={db}
               setMessage={setMessage}
+              storefrontBasePath={`/${selectedWebsite}/admin`}
+              onCreateProduct={(categoryId) => {
+                setProductCategoryId(categoryId);
+                setCreatingProduct(true);
+              }}
             />
           </div>
         </section>
+      )}
+
+      {/* Product Create Modal */}
+      {creatingProduct && (
+        <ProductModal
+          mode="manual"
+          initialCategoryId={productCategoryId || undefined}
+          onClose={() => {
+            setCreatingProduct(false);
+            setProductCategoryId(null);
+          }}
+          onSaved={() => {
+            setCreatingProduct(false);
+            setProductCategoryId(null);
+            setMessage({ type: 'success', text: 'Product created successfully!' });
+          }}
+        />
       )}
     </div>
   );

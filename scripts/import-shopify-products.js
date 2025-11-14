@@ -85,10 +85,6 @@ function initializeAdmin() {
 const db = initializeAdmin().firestore();
 const FieldValue = admin.firestore.FieldValue;
 
-const STORE_ROOT = 'LUNERA';
-const STORE_ITEMS_COLLECTION = 'items';
-const storeCollection = (name) => db.collection(STORE_ROOT).doc(name).collection(STORE_ITEMS_COLLECTION);
-
 const slugify = (value) =>
   value
     .toString()
@@ -132,6 +128,8 @@ const buildShopifyDocument = (product, matchedCategorySlug) => {
     matchedCategorySlug: matchedCategorySlug || null,
     imageUrls: extractImageUrls(product),
     rawProduct: product,
+    storefronts: [],
+    processedStorefronts: [],
   };
 };
 
@@ -258,13 +256,25 @@ async function importProducts() {
   const shopifyProducts = await fetchAllShopifyProducts(storeUrl, accessToken);
   console.log(`\n✅ Fetched ${shopifyProducts.length} products from Shopify\n`);
   
-  const shopifyCollection = storeCollection('shopify');
+  const shopifyCollection = db.collection('shopifyItems');
   let totalUpserted = 0;
+  let totalSkipped = 0;
   let matchedCount = 0;
   const unmatchedProducts = [];
   
   for (const product of shopifyProducts) {
-    console.log(`\n🧾 Shopify product payload (${product.title} | ID: ${product.id})`);
+    const documentId = generateDocumentId(product);
+    const docRef = shopifyCollection.doc(documentId);
+    
+    // Check if product already exists
+    const existingDoc = await docRef.get();
+    if (existingDoc.exists) {
+      console.log(`  ⏭️  Skipping ${product.title} (ID: ${product.id}) - already imported`);
+      totalSkipped += 1;
+      continue;
+    }
+    
+    console.log(`\n🧾 Importing new Shopify product: ${product.title} (ID: ${product.id})`);
     console.dir(product, { depth: null });
     
     const categorySlug = matchProductToCategory(product);
@@ -274,29 +284,20 @@ async function importProducts() {
       unmatchedProducts.push(product);
     }
     
-    const documentId = generateDocumentId(product);
-    const docRef = shopifyCollection.doc(documentId);
     const payload = buildShopifyDocument(product, categorySlug);
-    
-    const existingDoc = await docRef.get();
-    const timestamps = existingDoc.exists
-      ? { updatedAt: FieldValue.serverTimestamp() }
-      : {
-          createdAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-        };
     
     await docRef.set(
       {
         ...payload,
         slug: documentId,
         fetchedAt: FieldValue.serverTimestamp(),
-        ...timestamps,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       },
       { merge: true }
     );
     
-    console.log(`  • Stored at LUNERA/shopify/items/${documentId}`);
+    console.log(`  ✅ Stored at shopifyItems/${documentId}`);
     totalUpserted += 1;
   }
   
@@ -315,7 +316,9 @@ async function importProducts() {
   }
   
   console.log(`\n✅ Shopify sync complete!`);
-  console.log(`  • Upserted: ${totalUpserted} products into LUNERA/shopify/items`);
+  console.log(`  • Imported: ${totalUpserted} new products`);
+  console.log(`  • Skipped: ${totalSkipped} already imported products`);
+  console.log(`  • Total processed: ${totalUpserted + totalSkipped} products`);
 }
 
 async function main() {
